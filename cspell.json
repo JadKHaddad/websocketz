@@ -1,0 +1,12 @@
+{
+    "version": "0.2",
+    "language": "en",
+    "words": [
+        "Haddad",
+        "websocketz",
+        "zerocopy"
+    ],
+    "ignorePaths": [
+        "target"
+    ]
+}
