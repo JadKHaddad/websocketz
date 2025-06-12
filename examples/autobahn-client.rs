@@ -1,0 +1,156 @@
+use bytes::Bytes;
+use embedded_io_adapters::tokio_1::FromTokio;
+use http::Request;
+use http_body_util::Empty;
+use hyper::upgrade::Upgraded;
+use hyper_util::rt::TokioIo;
+use rand::{SeedableRng, rngs::StdRng};
+use tokio::net::TcpStream;
+use websocketz::{
+    CloseCode, CloseFrame, Message, Websockets, WebsocketsRead, WebsocketsWrite, next,
+};
+
+struct SpawnExecutor;
+
+impl<Fut> hyper::rt::Executor<Fut> for SpawnExecutor
+where
+    Fut: Future + Send + 'static,
+    Fut::Output: Send + 'static,
+{
+    fn execute(&self, fut: Fut) {
+        tokio::task::spawn(fut);
+    }
+}
+
+async fn connect(path: &str) -> Result<TokioIo<Upgraded>, Box<dyn std::error::Error>> {
+    let stream = TcpStream::connect("localhost:9001").await?;
+
+    let req = Request::builder()
+        .method("GET")
+        .uri(format!("http://localhost:9001/{}", path))
+        .header("Host", "localhost:9001")
+        .header("upgrade", "websocket")
+        .header("connection", "upgrade")
+        .header(
+            "Sec-WebSocket-Key",
+            fastwebsockets::handshake::generate_key(),
+        )
+        .header("Sec-WebSocket-Version", "13")
+        .body(Empty::<Bytes>::new())?;
+
+    let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, stream).await?;
+
+    Ok(ws.into_inner())
+}
+
+async fn get_case_count() -> Result<u32, Box<dyn std::error::Error>> {
+    let stream = connect("getCaseCount").await?;
+
+    let read_buf = &mut [0u8; 1024];
+    let write_buf = &mut [0u8; 1024];
+    let fragments_buf = &mut [0u8; 1024];
+    let rng = StdRng::from_os_rng();
+
+    let mut websocketz = Websockets::client(
+        FromTokio::new(stream),
+        rng,
+        read_buf,
+        write_buf,
+        fragments_buf,
+    );
+
+    let message = {
+        let Message::Text(payload) = next!(websocketz)
+            .transpose()?
+            .ok_or("No message received")?
+        else {
+            return Err("Expected a text message".into());
+        };
+        payload.parse()?
+    };
+
+    websocketz
+        .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
+        .await?;
+
+    Ok(message)
+}
+
+const SIZE: usize = 24 * 1024 * 1024;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let count = get_case_count().await?;
+
+    for case in 1..=count {
+        println!("Running case {case} of {count}");
+
+        let stream = connect(&format!("runCase?case={}&agent=framez-websockets", case)).await?;
+        let (read, write) = tokio::io::split(stream);
+
+        let read_buf = &mut [0u8; 1024];
+        let write_buf = &mut [0u8; 1024];
+        let fragments_buf = &mut [0u8; 1024];
+        let rng = StdRng::from_os_rng();
+
+        let mut websocketz_read =
+            WebsocketsRead::client(FromTokio::new(read), read_buf, fragments_buf);
+
+        let mut websocketz_write = WebsocketsWrite::client(FromTokio::new(write), rng, write_buf);
+
+        loop {
+            match next!(websocketz_read) {
+                Some(Ok(msg)) => {
+                    match msg {
+                        Message::Text(payload) => {
+                            websocketz_write.send(Message::Text(payload)).await?;
+                        }
+                        Message::Binary(payload) => {
+                            // we can also fragment messages
+                            websocketz_write
+                                .send_fragmented(Message::Binary(payload), SIZE / 4)
+                                .await?;
+                        }
+                        Message::Close(Some(frame)) => {
+                            websocketz_write.send(Message::Close(Some(frame))).await?;
+
+                            break;
+                        }
+                        Message::Close(None) => {
+                            websocketz_write
+                                .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
+                                .await?;
+
+                            break;
+                        }
+                        Message::Ping(payload) => {
+                            websocketz_write.send(Message::Pong(payload)).await?;
+                        }
+                        _ => {}
+                    }
+                }
+                None => {
+                    break;
+                }
+                Some(Err(_)) => {
+                    websocketz_write.send(Message::Close(None)).await?;
+
+                    break;
+                }
+            }
+        }
+    }
+
+    let stream = connect("updateReports?agent=framez-websockets").await?;
+
+    let write_buf = &mut [0u8; 1024];
+    let rng = StdRng::from_os_rng();
+
+    let mut websocketz = WebsocketsWrite::client(FromTokio::new(stream), rng, write_buf);
+
+    websocketz
+        .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
+        .await?;
+
+    Ok(())
+}

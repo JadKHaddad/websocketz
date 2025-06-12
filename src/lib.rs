@@ -1,15 +1,23 @@
 #![no_std]
+#![deny(missing_debug_implementations)]
+// #![deny(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+pub use framez::next;
 
 pub mod error;
 
 mod close_code;
-use close_code::CloseCode;
+pub use close_code::CloseCode;
 
 mod close_frame;
 pub use close_frame::CloseFrame;
 
+mod codec;
+use codec::FramesCodec;
+
 mod frame;
-use frame::{Frame, FrameMut};
+use frame::{Frame, FrameMut, Header};
 
 mod opcode;
 use opcode::OpCode;
@@ -17,4 +25,12 @@ use opcode::OpCode;
 mod mask;
 
 mod fragments;
+
 mod message;
+pub use message::Message;
+
+mod websockets_core;
+use websockets_core::WebsocketsCore;
+
+mod websockets;
+pub use websockets::{Websockets, WebsocketsRead, WebsocketsWrite};

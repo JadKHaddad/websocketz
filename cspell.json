@@ -2,7 +2,15 @@
     "version": "0.2",
     "language": "en",
     "words": [
+        "codegen",
+        "docsrs",
+        "fastwebsockets",
+        "framez",
         "Haddad",
+        "rngs",
+        "rustdoc",
+        "Seedable",
+        "thiserror",
         "websocketz",
         "zerocopy"
     ],
