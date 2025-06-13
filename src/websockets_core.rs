@@ -69,14 +69,24 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         self
     }
 
-    /// Tries to read a message from the underlying reader.
-    ///
-    /// # Return value
-    ///
-    /// - `Some(Ok(None))` if the buffer is not framable or the fragments do not add up to a complete message. Call `maybe_next` again to read more bytes.
-    /// - `Some(Ok(Some(message)))` if a frame was successfully decoded. Call `maybe_next` again to read more bytes.
-    /// - `Some(Err(error))` if an error occurred. The caller should stop reading.
-    /// - `None` if eof was reached. The caller should stop reading.
+    /// Returns reference to the reader/writer.
+    #[inline]
+    pub const fn inner(&self) -> &RW {
+        self.framed.inner()
+    }
+
+    /// Returns mutable reference to the reader/writer.
+    #[inline]
+    pub fn inner_mut(&mut self) -> &mut RW {
+        self.framed.inner_mut()
+    }
+
+    /// Consumes the [`WebsocketsCore`] and returns the reader/writer.
+    #[inline]
+    pub fn into_inner(self) -> RW {
+        self.framed.into_parts().1
+    }
+
     pub async fn maybe_next<'this>(
         &'this mut self,
     ) -> Option<Result<Option<Message<'this>>, ReadError<RW::Error>>>

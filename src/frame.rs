@@ -1,4 +1,4 @@
-use crate::{CloseCode, OpCode};
+use crate::OpCode;
 
 /// A received frame.
 #[derive(Debug)]

@@ -3,7 +3,7 @@
 // #![deny(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-pub use framez::next;
+mod next;
 
 pub mod error;
 
@@ -34,3 +34,6 @@ use websockets_core::WebsocketsCore;
 
 mod websockets;
 pub use websockets::{Websockets, WebsocketsRead, WebsocketsWrite};
+
+#[doc(hidden)]
+pub mod mock;
