@@ -85,18 +85,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for case in 1..=count {
         println!("Running case {case} of {count}");
 
-        let stream = connect(&format!("runCase?case={}&agent=framez-websockets", case)).await?;
+        let stream = connect(&format!("runCase?case={}&agent=websocketz", case)).await?;
         let (read, write) = tokio::io::split(stream);
 
-        let read_buf = &mut [0u8; 1024];
-        let write_buf = &mut [0u8; 1024];
-        let fragments_buf = &mut [0u8; 1024];
+        let mut read_buf = vec![0u8; SIZE];
+        let mut write_buf = vec![0u8; SIZE];
+        let mut fragments_buf = vec![0u8; SIZE];
         let rng = StdRng::from_os_rng();
 
         let mut websocketz_read =
-            WebsocketsRead::client(FromTokio::new(read), read_buf, fragments_buf);
+            WebsocketsRead::client(FromTokio::new(read), &mut read_buf, &mut fragments_buf);
 
-        let mut websocketz_write = WebsocketsWrite::client(FromTokio::new(write), rng, write_buf);
+        let mut websocketz_write =
+            WebsocketsWrite::client(FromTokio::new(write), rng, &mut write_buf);
 
         loop {
             match next!(websocketz_read) {
@@ -132,7 +133,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 None => {
                     break;
                 }
-                Some(Err(_)) => {
+                Some(Err(err)) => {
+                    println!("Error reading message: {}", err);
+
                     websocketz_write.send(Message::Close(None)).await?;
 
                     break;
@@ -141,7 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let stream = connect("updateReports?agent=framez-websockets").await?;
+    let stream = connect("updateReports?agent=websocketz").await?;
 
     let write_buf = &mut [0u8; 1024];
     let rng = StdRng::from_os_rng();

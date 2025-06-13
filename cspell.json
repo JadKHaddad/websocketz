@@ -3,15 +3,21 @@
     "language": "en",
     "words": [
         "codegen",
+        "crossbario",
         "docsrs",
         "fastwebsockets",
         "framez",
+        "fuzzingclient",
+        "fuzzingserver",
         "Haddad",
+        "repr",
         "rngs",
         "rustdoc",
         "Seedable",
         "thiserror",
         "websocketz",
+        "WSSERVER",
+        "wstest",
         "zerocopy"
     ],
     "ignorePaths": [
