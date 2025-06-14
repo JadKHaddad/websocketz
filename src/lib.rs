@@ -3,10 +3,6 @@
 // #![deny(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-mod next;
-
-pub mod error;
-
 mod close_code;
 pub use close_code::CloseCode;
 
@@ -16,24 +12,34 @@ pub use close_frame::CloseFrame;
 mod codec;
 use codec::FramesCodec;
 
+pub mod error;
+
+mod fragments;
+
 mod frame;
 use frame::{Frame, FrameMut, Header};
+
+mod http;
+use http::{Request, RequestCodec, ResponseCodec};
+
+mod mask;
+
+mod message;
+pub use message::Message;
+
+#[doc(hidden)]
+pub mod mock;
+
+mod next;
 
 mod opcode;
 use opcode::OpCode;
 
-mod mask;
-
-mod fragments;
-
-mod message;
-pub use message::Message;
+mod options;
+pub use options::Options;
 
 mod websockets_core;
 use websockets_core::WebsocketsCore;
 
 mod websockets;
 pub use websockets::{Websockets, WebsocketsRead, WebsocketsWrite};
-
-#[doc(hidden)]
-pub mod mock;

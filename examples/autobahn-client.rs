@@ -1,46 +1,40 @@
-use bytes::Bytes;
 use embedded_io_adapters::tokio_1::FromTokio;
-use http::Request;
-use http_body_util::Empty;
-use hyper::upgrade::Upgraded;
-use hyper_util::rt::TokioIo;
+use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpStream;
 use websocketz::{
-    CloseCode, CloseFrame, Message, Websockets, WebsocketsRead, WebsocketsWrite, next,
+    CloseCode, CloseFrame, Message, Options, Websockets, WebsocketsRead, WebsocketsWrite, next,
 };
 
-struct SpawnExecutor;
+async fn connect(path: &str) -> Result<TcpStream, Box<dyn std::error::Error>> {
+    let path = format!("http://localhost:9001/{}", path);
 
-impl<Fut> hyper::rt::Executor<Fut> for SpawnExecutor
-where
-    Fut: Future + Send + 'static,
-    Fut::Output: Send + 'static,
-{
-    fn execute(&self, fut: Fut) {
-        tokio::task::spawn(fut);
-    }
-}
-
-async fn connect(path: &str) -> Result<TokioIo<Upgraded>, Box<dyn std::error::Error>> {
     let stream = TcpStream::connect("localhost:9001").await?;
 
-    let req = Request::builder()
-        .method("GET")
-        .uri(format!("http://localhost:9001/{}", path))
-        .header("Host", "localhost:9001")
-        .header("upgrade", "websocket")
-        .header("connection", "upgrade")
-        .header(
-            "Sec-WebSocket-Key",
-            fastwebsockets::handshake::generate_key(),
-        )
-        .header("Sec-WebSocket-Version", "13")
-        .body(Empty::<Bytes>::new())?;
+    let read_buf = &mut [0u8; 1024];
+    let write_buf = &mut [0u8; 1024];
+    let rng = StdRng::from_os_rng();
 
-    let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, stream).await?;
+    let options = Options::new(
+        &path,
+        &[
+            Header {
+                name: "Host",
+                value: b"localhost:9001",
+            },
+            Header {
+                name: "Origin",
+                value: b"http://localhost:9001",
+            },
+        ],
+    );
 
-    Ok(ws.into_inner())
+    Ok(
+        Websockets::handshake::<16>(FromTokio::new(stream), rng, read_buf, write_buf, options)
+            .await
+            .map_err(|_| "Handshake failed")?
+            .into_inner(),
+    )
 }
 
 async fn get_case_count() -> Result<u32, Box<dyn std::error::Error>> {

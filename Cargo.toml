@@ -15,6 +15,8 @@ embedded-io-async = { version = "0.6.1", default-features = false }
 rand_core = { version = "0.9.3", default-features = false }
 rand = { version = "0.9.1", default-features = false }
 thiserror = { version = "2.0.12", default-features = false }
+httparse = { version = "1.10.1", default-features = false }
+base64 = { version = "0.22.1", default-features = false }
 
 [dev-dependencies]
 rand = { version = "0.9.1", features = ["std_rng"] }

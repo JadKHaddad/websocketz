@@ -1,10 +1,16 @@
+use core::panic;
+
+use base64::{EncodeSliceError, Engine as _, engine::general_purpose};
 use embedded_io_async::{Read, Write};
 use framez::Framed;
+use httparse::Header;
 use rand::RngCore;
 
 use crate::{
-    CloseCode, CloseFrame, FramesCodec, Message, OpCode,
+    CloseCode, CloseFrame, FramesCodec, Message, OpCode, Options, Request,
     error::{ReadError, WriteError},
+    http::{RequestCodec, ResponseCodec},
+    next,
 };
 
 #[derive(Debug)]
@@ -85,6 +91,90 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
     #[inline]
     pub fn into_inner(self) -> RW {
         self.framed.into_parts().1
+    }
+
+    fn generate_key(rng: &mut Rng) -> Result<[u8; 24], EncodeSliceError>
+    where
+        Rng: RngCore,
+    {
+        let mut key_as_base64: [u8; 24] = [0; 24];
+
+        let mut key: [u8; 16] = [0; 16];
+
+        rng.fill_bytes(&mut key);
+
+        general_purpose::STANDARD.encode_slice(key, &mut key_as_base64)?;
+
+        Ok(key_as_base64)
+    }
+
+    // TODO: err
+    pub async fn handshake<const N: usize>(
+        inner: RW,
+        mut rng: Rng,
+        read_buffer: &'buf mut [u8],
+        write_buffer: &'buf mut [u8],
+        options: Options<'_, '_>,
+    ) -> Result<RW, ()>
+    where
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        extern crate std;
+
+        // TODO: err
+        let key = Self::generate_key(&mut rng).unwrap();
+
+        let headers = &[
+            Header {
+                name: "upgrade",
+                value: b"websocket",
+            },
+            Header {
+                name: "connection",
+                value: b"upgrade",
+            },
+            Header {
+                name: "sec-websocket-version",
+                value: b"13",
+            },
+            Header {
+                name: "sec-websocket-key",
+                value: &key,
+            },
+        ];
+
+        let request = Request::new("GET", options.path, headers, options.headers);
+
+        std::println!("Request: {:#?}", request);
+
+        let mut framed = Framed::new(RequestCodec::new(), inner, &mut [], write_buffer);
+        // TODO: err
+        framed.send(request).await.map_err(|_| ())?;
+
+        let inner = framed.into_parts().1;
+
+        let mut framed = Framed::new(ResponseCodec::<N>::new(), inner, read_buffer, &mut []);
+
+        match next!(framed) {
+            None => {
+                // TODO
+                panic!("Unexpected response received");
+            }
+            Some(Err(_)) => {
+                // TODO
+                panic!("Failed to read response");
+            }
+            Some(Ok(response)) => {
+                // TODO: verify
+
+                std::println!("Response: {:#?}", response);
+            }
+        }
+
+        let inner = framed.into_parts().1;
+
+        Ok(inner)
     }
 
     pub async fn maybe_next<'this>(

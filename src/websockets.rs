@@ -2,7 +2,7 @@ use embedded_io_async::{Read, Write};
 use rand::RngCore;
 
 use crate::{
-    Message, WebsocketsCore,
+    Message, Options, WebsocketsCore,
     error::{ReadError, WriteError},
 };
 
@@ -52,6 +52,21 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     #[inline]
     pub fn into_inner(self) -> RW {
         self.core.into_inner()
+    }
+
+    // TODO
+    pub async fn handshake<const N: usize>(
+        inner: RW,
+        rng: Rng,
+        read_buffer: &'buf mut [u8],
+        write_buffer: &'buf mut [u8],
+        options: Options<'_, '_>,
+    ) -> Result<RW, ()>
+    where
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        WebsocketsCore::handshake::<N>(inner, rng, read_buffer, write_buffer, options).await
     }
 
     /// Tries to read a message from the underlying reader.

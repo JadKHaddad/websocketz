@@ -10,6 +10,7 @@
         "fuzzingclient",
         "fuzzingserver",
         "Haddad",
+        "httparse",
         "repr",
         "rngs",
         "rustdoc",
