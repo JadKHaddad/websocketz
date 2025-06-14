@@ -7,15 +7,14 @@ use httparse::Header;
 use rand::RngCore;
 
 use crate::{
-    CloseCode, CloseFrame, FramesCodec, Message, OpCode, Options, Request,
+    CloseCode, CloseFrame, FramesCodec, Message, OpCode, Options, Request, RequestCodec,
+    ResponseCodec,
     error::{ReadError, WriteError},
-    frame,
-    http::{RequestCodec, ResponseCodec},
     next,
 };
 
 #[derive(Debug)]
-struct Fragmented {
+pub struct Fragmented {
     opcode: OpCode,
     index: usize,
 }
@@ -150,14 +149,14 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let (codec, inner, state) = self.framed.into_parts();
 
-        let mut framed = Framed::from_parts(RequestCodec::new(), inner, state);
+        let mut framed = Framed::from_parts(RequestCodec::new(), inner, state.reset());
 
         // TODO: err
         framed.send(request).await.map_err(|_| ())?;
 
         let (_, inner, state) = framed.into_parts();
 
-        let mut framed = Framed::from_parts(ResponseCodec::<N>::new(), inner, state);
+        let mut framed = Framed::from_parts(ResponseCodec::<N>::new(), inner, state.reset());
 
         match next!(framed) {
             None => {

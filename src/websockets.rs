@@ -164,18 +164,18 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         let (codec, inner, state) = self.core.framed.into_parts();
         let (read_codec, write_codec) = codec.split();
 
-        let (read_inner, write_inner) = f(inner);
+        let (read, write) = f(inner);
 
         let framed_read = Framed::from_parts(
             read_codec,
-            read_inner,
-            ReadWriteState::new(state.read, WriteState::new(&mut [])),
+            read,
+            ReadWriteState::new(state.read, WriteState::empty()),
         );
 
         let framed_write = Framed::from_parts(
             write_codec,
-            write_inner,
-            ReadWriteState::new(ReadState::new(&mut []), state.write),
+            write,
+            ReadWriteState::new(ReadState::empty(), state.write),
         );
 
         (
