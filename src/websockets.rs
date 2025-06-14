@@ -3,6 +3,7 @@ use rand::RngCore;
 
 use crate::{
     Message, Options, WebsocketsCore,
+    codec::FramesCodec,
     error::{ReadError, WriteError},
 };
 
@@ -133,6 +134,21 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     {
         self.core.send_fragmented(message, fragment_size).await
     }
+
+    // TODO: we have to get the read, write buffers from the framed (extern crate)
+    fn split_with<F, R, W>(self, f: F) -> (WebsocketsRead<'buf, R>, WebsocketsWrite<'buf, W, Rng>)
+    where
+        F: FnOnce(RW) -> (R, W),
+    {
+        let (codec, inner) = self.core.framed.into_parts();
+        let (read_codec, write_codec) = codec.split();
+
+        let (read_inner, write_inner) = f(inner);
+        (
+            WebsocketsRead::from_codec(read_inner, read_codec, &mut [], self.core.fragments_buffer),
+            WebsocketsWrite::from_codec(write_inner, write_codec, &mut []),
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -141,6 +157,17 @@ pub struct WebsocketsRead<'buf, RW> {
 }
 
 impl<'buf, RW> WebsocketsRead<'buf, RW> {
+    fn from_codec(
+        inner: RW,
+        codec: FramesCodec<()>,
+        read_buffer: &'buf mut [u8],
+        fragments_buffer: &'buf mut [u8],
+    ) -> Self {
+        Self {
+            core: WebsocketsCore::from_codec(inner, codec, read_buffer, &mut [], fragments_buffer),
+        }
+    }
+
     pub fn client(
         inner: RW,
         read_buffer: &'buf mut [u8],
@@ -195,6 +222,12 @@ pub struct WebsocketsWrite<'buf, RW, Rng> {
 }
 
 impl<'buf, RW, Rng> WebsocketsWrite<'buf, RW, Rng> {
+    fn from_codec(inner: RW, codec: FramesCodec<Rng>, write_buffer: &'buf mut [u8]) -> Self {
+        Self {
+            core: WebsocketsCore::from_codec(inner, codec, &mut [], write_buffer, &mut []),
+        }
+    }
+
     pub fn client(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
             core: WebsocketsCore::client(inner, rng, &mut [], write_buffer, &mut []),

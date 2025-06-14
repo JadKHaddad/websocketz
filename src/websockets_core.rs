@@ -21,15 +21,31 @@ struct Fragmented {
 
 #[derive(Debug)]
 pub struct WebsocketsCore<'buf, RW, Rng> {
-    fragmented: Option<Fragmented>,
-    fragments_buffer: &'buf mut [u8],
-    framed: Framed<'buf, FramesCodec<Rng>, RW>,
+    pub fragmented: Option<Fragmented>,
+    pub fragments_buffer: &'buf mut [u8],
+    pub framed: Framed<'buf, FramesCodec<Rng>, RW>,
 }
 
 impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
-    fn new(
+    pub fn new(
         inner: RW,
         rng: Rng,
+        read_buffer: &'buf mut [u8],
+        write_buffer: &'buf mut [u8],
+        fragments_buffer: &'buf mut [u8],
+    ) -> Self {
+        Self::from_codec(
+            inner,
+            FramesCodec::new(rng),
+            read_buffer,
+            write_buffer,
+            fragments_buffer,
+        )
+    }
+
+    pub fn from_codec(
+        inner: RW,
+        codec: FramesCodec<Rng>,
         read_buffer: &'buf mut [u8],
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
@@ -37,7 +53,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         Self {
             fragmented: None,
             fragments_buffer,
-            framed: Framed::new(FramesCodec::new(rng), inner, read_buffer, write_buffer),
+            framed: Framed::new(codec, inner, read_buffer, write_buffer),
         }
     }
 
@@ -120,33 +136,29 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        extern crate std;
-
         // TODO: err
         let key = Self::generate_key(&mut rng).unwrap();
 
         let headers = &[
             Header {
-                name: "upgrade",
+                name: "Upgrade",
                 value: b"websocket",
             },
             Header {
-                name: "connection",
-                value: b"upgrade",
+                name: "Connection",
+                value: b"Upgrade",
             },
             Header {
-                name: "sec-websocket-version",
+                name: "Sec-WebSocket-Version",
                 value: b"13",
             },
             Header {
-                name: "sec-websocket-key",
+                name: "Sec-WebSocket-Key",
                 value: &key,
             },
         ];
 
         let request = Request::new("GET", options.path, headers, options.headers);
-
-        std::println!("Request: {:#?}", request);
 
         let mut framed = Framed::new(RequestCodec::new(), inner, &mut [], write_buffer);
         // TODO: err
@@ -167,8 +179,6 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             }
             Some(Ok(response)) => {
                 // TODO: verify
-
-                std::println!("Response: {:#?}", response);
             }
         }
 

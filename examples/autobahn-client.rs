@@ -7,8 +7,6 @@ use websocketz::{
 };
 
 async fn connect(path: &str) -> Result<TcpStream, Box<dyn std::error::Error>> {
-    let path = format!("http://localhost:9001/{}", path);
-
     let stream = TcpStream::connect("localhost:9001").await?;
 
     let read_buf = &mut [0u8; 1024];
@@ -16,7 +14,7 @@ async fn connect(path: &str) -> Result<TcpStream, Box<dyn std::error::Error>> {
     let rng = StdRng::from_os_rng();
 
     let options = Options::new(
-        &path,
+        path,
         &[
             Header {
                 name: "Host",
@@ -38,7 +36,7 @@ async fn connect(path: &str) -> Result<TcpStream, Box<dyn std::error::Error>> {
 }
 
 async fn get_case_count() -> Result<u32, Box<dyn std::error::Error>> {
-    let stream = connect("getCaseCount").await?;
+    let stream = connect("/getCaseCount").await?;
 
     let read_buf = &mut [0u8; 1024];
     let write_buf = &mut [0u8; 1024];
@@ -79,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for case in 1..=count {
         println!("Running case {case} of {count}");
 
-        let stream = connect(&format!("runCase?case={}&agent=websocketz", case)).await?;
+        let stream = connect(&format!("/runCase?case={}&agent=websocketz", case)).await?;
         let (read, write) = tokio::io::split(stream);
 
         let mut read_buf = vec![0u8; SIZE];

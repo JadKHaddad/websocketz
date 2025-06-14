@@ -52,6 +52,23 @@ impl<R> FramesCodec<R> {
     pub fn set_mask(&mut self, mask: bool) {
         self.mask = mask;
     }
+
+    pub fn split(self) -> (FramesCodec<()>, FramesCodec<R>) {
+        (
+            FramesCodec {
+                unmask: self.unmask,
+                mask: self.mask,
+                decode_state: self.decode_state,
+                rng: (),
+            },
+            FramesCodec {
+                unmask: self.unmask,
+                mask: self.mask,
+                decode_state: DecodeState::Init, // We don't care about the decode state in the second codec (writer)
+                rng: self.rng,
+            },
+        )
+    }
 }
 
 impl<R> framez::decode::DecodeError for FramesCodec<R> {
