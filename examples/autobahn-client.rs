@@ -7,32 +7,34 @@ use websocketz::{
 };
 
 async fn connect(path: &str) -> Result<TcpStream, Box<dyn std::error::Error>> {
-    let stream = TcpStream::connect("localhost:9001").await?;
+    // let stream = TcpStream::connect("localhost:9001").await?;
 
-    let read_buf = &mut [0u8; 1024];
-    let write_buf = &mut [0u8; 1024];
-    let rng = StdRng::from_os_rng();
+    // let read_buf = &mut [0u8; 1024];
+    // let write_buf = &mut [0u8; 1024];
+    // let rng = StdRng::from_os_rng();
 
-    let options = Options::new(
-        path,
-        &[
-            Header {
-                name: "Host",
-                value: b"localhost:9001",
-            },
-            Header {
-                name: "Origin",
-                value: b"http://localhost:9001",
-            },
-        ],
-    );
+    // let options = Options::new(
+    //     path,
+    //     &[
+    //         Header {
+    //             name: "Host",
+    //             value: b"localhost:9001",
+    //         },
+    //         Header {
+    //             name: "Origin",
+    //             value: b"http://localhost:9001",
+    //         },
+    //     ],
+    // );
 
-    Ok(
-        Websockets::handshake::<16>(FromTokio::new(stream), rng, read_buf, write_buf, options)
-            .await
-            .map_err(|_| "Handshake failed")?
-            .into_inner(),
-    )
+    // Ok(
+    //     Websockets::handshake::<16>(FromTokio::new(stream), rng, read_buf, write_buf, options)
+    //         .await
+    //         .map_err(|_| "Handshake failed")?
+    //         .into_inner(),
+    // )
+
+    todo!()
 }
 
 async fn get_case_count() -> Result<u32, Box<dyn std::error::Error>> {
@@ -72,80 +74,80 @@ const SIZE: usize = 24 * 1024 * 1024;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let count = get_case_count().await?;
+    // let count = get_case_count().await?;
 
-    for case in 1..=count {
-        println!("Running case {case} of {count}");
+    // for case in 1..=count {
+    //     println!("Running case {case} of {count}");
 
-        let stream = connect(&format!("/runCase?case={}&agent=websocketz", case)).await?;
-        let (read, write) = tokio::io::split(stream);
+    //     let stream = connect(&format!("/runCase?case={}&agent=websocketz", case)).await?;
+    //     let (read, write) = tokio::io::split(stream);
 
-        let mut read_buf = vec![0u8; SIZE];
-        let mut write_buf = vec![0u8; SIZE];
-        let mut fragments_buf = vec![0u8; SIZE];
-        let rng = StdRng::from_os_rng();
+    //     let mut read_buf = vec![0u8; SIZE];
+    //     let mut write_buf = vec![0u8; SIZE];
+    //     let mut fragments_buf = vec![0u8; SIZE];
+    //     let rng = StdRng::from_os_rng();
 
-        let mut websocketz_read =
-            WebsocketsRead::client(FromTokio::new(read), &mut read_buf, &mut fragments_buf);
+    //     let mut websocketz_read =
+    //         WebsocketsRead::client(FromTokio::new(read), &mut read_buf, &mut fragments_buf);
 
-        let mut websocketz_write =
-            WebsocketsWrite::client(FromTokio::new(write), rng, &mut write_buf);
+    //     let mut websocketz_write =
+    //         WebsocketsWrite::client(FromTokio::new(write), rng, &mut write_buf);
 
-        loop {
-            match next!(websocketz_read) {
-                Some(Ok(msg)) => {
-                    match msg {
-                        Message::Text(payload) => {
-                            websocketz_write.send(Message::Text(payload)).await?;
-                        }
-                        Message::Binary(payload) => {
-                            // we can also fragment messages
-                            websocketz_write
-                                .send_fragmented(Message::Binary(payload), SIZE / 4)
-                                .await?;
-                        }
-                        Message::Close(Some(frame)) => {
-                            websocketz_write.send(Message::Close(Some(frame))).await?;
+    //     loop {
+    //         match next!(websocketz_read) {
+    //             Some(Ok(msg)) => {
+    //                 match msg {
+    //                     Message::Text(payload) => {
+    //                         websocketz_write.send(Message::Text(payload)).await?;
+    //                     }
+    //                     Message::Binary(payload) => {
+    //                         // we can also fragment messages
+    //                         websocketz_write
+    //                             .send_fragmented(Message::Binary(payload), SIZE / 4)
+    //                             .await?;
+    //                     }
+    //                     Message::Close(Some(frame)) => {
+    //                         websocketz_write.send(Message::Close(Some(frame))).await?;
 
-                            break;
-                        }
-                        Message::Close(None) => {
-                            websocketz_write
-                                .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
-                                .await?;
+    //                         break;
+    //                     }
+    //                     Message::Close(None) => {
+    //                         websocketz_write
+    //                             .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
+    //                             .await?;
 
-                            break;
-                        }
-                        Message::Ping(payload) => {
-                            websocketz_write.send(Message::Pong(payload)).await?;
-                        }
-                        _ => {}
-                    }
-                }
-                None => {
-                    break;
-                }
-                Some(Err(err)) => {
-                    println!("Error reading message: {}", err);
+    //                         break;
+    //                     }
+    //                     Message::Ping(payload) => {
+    //                         websocketz_write.send(Message::Pong(payload)).await?;
+    //                     }
+    //                     _ => {}
+    //                 }
+    //             }
+    //             None => {
+    //                 break;
+    //             }
+    //             Some(Err(err)) => {
+    //                 println!("Error reading message: {}", err);
 
-                    websocketz_write.send(Message::Close(None)).await?;
+    //                 websocketz_write.send(Message::Close(None)).await?;
 
-                    break;
-                }
-            }
-        }
-    }
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // }
 
-    let stream = connect("updateReports?agent=websocketz").await?;
+    // let stream = connect("updateReports?agent=websocketz").await?;
 
-    let write_buf = &mut [0u8; 1024];
-    let rng = StdRng::from_os_rng();
+    // let write_buf = &mut [0u8; 1024];
+    // let rng = StdRng::from_os_rng();
 
-    let mut websocketz = WebsocketsWrite::client(FromTokio::new(stream), rng, write_buf);
+    // let mut websocketz = WebsocketsWrite::client(FromTokio::new(stream), rng, write_buf);
 
-    websocketz
-        .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
-        .await?;
+    // websocketz
+    //     .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
+    //     .await?;
 
     Ok(())
 }

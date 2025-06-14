@@ -10,7 +10,7 @@ repository = "https://github.com/JadKHaddad/websocketz"
 keywords = ["no_std", "embedded", "websockets", "zerocopy"]
 
 [dependencies]
-framez = { version = "0.1.0" }
+framez = { path = "/home/jadkhaddad/Desktop/Projects/framez/framez" }
 embedded-io-async = { version = "0.6.1", default-features = false }
 rand_core = { version = "0.9.3", default-features = false }
 rand = { version = "0.9.1", default-features = false }

@@ -53,6 +53,10 @@ impl<R> FramesCodec<R> {
         self.mask = mask;
     }
 
+    pub fn rng_mut(&mut self) -> &mut R {
+        &mut self.rng
+    }
+
     pub fn split(self) -> (FramesCodec<()>, FramesCodec<R>) {
         (
             FramesCodec {

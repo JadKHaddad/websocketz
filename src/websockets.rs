@@ -1,4 +1,8 @@
 use embedded_io_async::{Read, Write};
+use framez::{
+    Framed,
+    state::{ReadState, ReadWriteState, WriteState},
+};
 use rand::RngCore;
 
 use crate::{
@@ -13,6 +17,7 @@ pub struct Websockets<'buf, RW, Rng> {
 }
 
 impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
+    /// Creates a new [`Websockets`] for a client after a successful handshake.
     pub fn client(
         inner: RW,
         rng: Rng,
@@ -25,6 +30,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         }
     }
 
+    /// Creates a new [`Websockets`] for a server after a successful handshake.
     pub fn server(
         inner: RW,
         rng: Rng,
@@ -35,6 +41,24 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         Self {
             core: WebsocketsCore::server(inner, rng, read_buffer, write_buffer, fragments_buffer),
         }
+    }
+
+    pub async fn connect<const N: usize>(
+        inner: RW,
+        rng: Rng,
+        read_buffer: &'buf mut [u8],
+        write_buffer: &'buf mut [u8],
+        fragments_buffer: &'buf mut [u8],
+        options: Options<'_, '_>,
+    ) -> Result<Self, ()>
+    where
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        Self::client(inner, rng, read_buffer, write_buffer, fragments_buffer)
+            .handshake::<N>(options)
+            .await
+            .map_err(|_| ())
     }
 
     /// Returns reference to the reader/writer.
@@ -55,19 +79,14 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         self.core.into_inner()
     }
 
-    // TODO
-    pub async fn handshake<const N: usize>(
-        inner: RW,
-        rng: Rng,
-        read_buffer: &'buf mut [u8],
-        write_buffer: &'buf mut [u8],
-        options: Options<'_, '_>,
-    ) -> Result<RW, ()>
+    pub async fn handshake<const N: usize>(self, options: Options<'_, '_>) -> Result<Self, ()>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
-        WebsocketsCore::handshake::<N>(inner, rng, read_buffer, write_buffer, options).await
+        Ok(Self {
+            core: self.core.handshake::<N>(options).await?,
+        })
     }
 
     /// Tries to read a message from the underlying reader.
@@ -135,18 +154,33 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         self.core.send_fragmented(message, fragment_size).await
     }
 
-    // TODO: we have to get the read, write buffers from the framed (extern crate)
-    fn split_with<F, R, W>(self, f: F) -> (WebsocketsRead<'buf, R>, WebsocketsWrite<'buf, W, Rng>)
+    pub fn split_with<F, R, W>(
+        self,
+        f: F,
+    ) -> (WebsocketsRead<'buf, R>, WebsocketsWrite<'buf, W, Rng>)
     where
         F: FnOnce(RW) -> (R, W),
     {
-        let (codec, inner) = self.core.framed.into_parts();
+        let (codec, inner, state) = self.core.framed.into_parts();
         let (read_codec, write_codec) = codec.split();
 
         let (read_inner, write_inner) = f(inner);
+
+        let framed_read = Framed::from_parts(
+            read_codec,
+            read_inner,
+            ReadWriteState::new(state.read, WriteState::new(&mut [])),
+        );
+
+        let framed_write = Framed::from_parts(
+            write_codec,
+            write_inner,
+            ReadWriteState::new(ReadState::new(&mut []), state.write),
+        );
+
         (
-            WebsocketsRead::from_codec(read_inner, read_codec, &mut [], self.core.fragments_buffer),
-            WebsocketsWrite::from_codec(write_inner, write_codec, &mut []),
+            WebsocketsRead::from_framed(framed_read, self.core.fragments_buffer),
+            WebsocketsWrite::from_framed(framed_write),
         )
     }
 }
@@ -157,17 +191,16 @@ pub struct WebsocketsRead<'buf, RW> {
 }
 
 impl<'buf, RW> WebsocketsRead<'buf, RW> {
-    fn from_codec(
-        inner: RW,
-        codec: FramesCodec<()>,
-        read_buffer: &'buf mut [u8],
+    fn from_framed(
+        framed: Framed<'buf, FramesCodec<()>, RW>,
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
         Self {
-            core: WebsocketsCore::from_codec(inner, codec, read_buffer, &mut [], fragments_buffer),
+            core: WebsocketsCore::from_framed(framed, fragments_buffer),
         }
     }
 
+    /// Creates a new [`WebsocketsRead`] for a client after a successful handshake.
     pub fn client(
         inner: RW,
         read_buffer: &'buf mut [u8],
@@ -178,6 +211,7 @@ impl<'buf, RW> WebsocketsRead<'buf, RW> {
         }
     }
 
+    /// Creates a new [`WebsocketsRead`] for a server after a successful handshake.
     pub fn server(
         inner: RW,
         read_buffer: &'buf mut [u8],
@@ -222,18 +256,20 @@ pub struct WebsocketsWrite<'buf, RW, Rng> {
 }
 
 impl<'buf, RW, Rng> WebsocketsWrite<'buf, RW, Rng> {
-    fn from_codec(inner: RW, codec: FramesCodec<Rng>, write_buffer: &'buf mut [u8]) -> Self {
+    fn from_framed(framed: Framed<'buf, FramesCodec<Rng>, RW>) -> Self {
         Self {
-            core: WebsocketsCore::from_codec(inner, codec, &mut [], write_buffer, &mut []),
+            core: WebsocketsCore::from_framed(framed, &mut []),
         }
     }
 
+    /// Creates a new [`WebsocketsWrite`] for a client after a successful handshake.
     pub fn client(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
             core: WebsocketsCore::client(inner, rng, &mut [], write_buffer, &mut []),
         }
     }
 
+    /// Creates a new [`WebsocketsWrite`] for a server after a successful handshake.
     pub fn server(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
             core: WebsocketsCore::server(inner, rng, &mut [], write_buffer, &mut []),

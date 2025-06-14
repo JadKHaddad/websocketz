@@ -9,6 +9,7 @@ use rand::RngCore;
 use crate::{
     CloseCode, CloseFrame, FramesCodec, Message, OpCode, Options, Request,
     error::{ReadError, WriteError},
+    frame,
     http::{RequestCodec, ResponseCodec},
     next,
 };
@@ -27,33 +28,26 @@ pub struct WebsocketsCore<'buf, RW, Rng> {
 }
 
 impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
-    pub fn new(
+    fn new(
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
-        Self::from_codec(
-            inner,
-            FramesCodec::new(rng),
-            read_buffer,
-            write_buffer,
-            fragments_buffer,
-        )
+        let framed = Framed::new(FramesCodec::new(rng), inner, read_buffer, write_buffer);
+
+        Self::from_framed(framed, fragments_buffer)
     }
 
-    pub fn from_codec(
-        inner: RW,
-        codec: FramesCodec<Rng>,
-        read_buffer: &'buf mut [u8],
-        write_buffer: &'buf mut [u8],
+    pub fn from_framed(
+        framed: Framed<'buf, FramesCodec<Rng>, RW>,
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
         Self {
             fragmented: None,
             fragments_buffer,
-            framed: Framed::new(codec, inner, read_buffer, write_buffer),
+            framed,
         }
     }
 
@@ -109,7 +103,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         self.framed.into_parts().1
     }
 
-    fn generate_key(rng: &mut Rng) -> Result<[u8; 24], EncodeSliceError>
+    fn generate_key(&mut self) -> Result<[u8; 24], EncodeSliceError>
     where
         Rng: RngCore,
     {
@@ -117,7 +111,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let mut key: [u8; 16] = [0; 16];
 
-        rng.fill_bytes(&mut key);
+        self.framed.codec_mut().rng_mut().fill_bytes(&mut key);
 
         general_purpose::STANDARD.encode_slice(key, &mut key_as_base64)?;
 
@@ -125,19 +119,13 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
     }
 
     // TODO: err
-    pub async fn handshake<const N: usize>(
-        inner: RW,
-        mut rng: Rng,
-        read_buffer: &'buf mut [u8],
-        write_buffer: &'buf mut [u8],
-        options: Options<'_, '_>,
-    ) -> Result<RW, ()>
+    pub async fn handshake<const N: usize>(mut self, options: Options<'_, '_>) -> Result<Self, ()>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
         // TODO: err
-        let key = Self::generate_key(&mut rng).unwrap();
+        let key = self.generate_key().unwrap();
 
         let headers = &[
             Header {
@@ -160,13 +148,16 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let request = Request::new("GET", options.path, headers, options.headers);
 
-        let mut framed = Framed::new(RequestCodec::new(), inner, &mut [], write_buffer);
+        let (codec, inner, state) = self.framed.into_parts();
+
+        let mut framed = Framed::from_parts(RequestCodec::new(), inner, state);
+
         // TODO: err
         framed.send(request).await.map_err(|_| ())?;
 
-        let inner = framed.into_parts().1;
+        let (_, inner, state) = framed.into_parts();
 
-        let mut framed = Framed::new(ResponseCodec::<N>::new(), inner, read_buffer, &mut []);
+        let mut framed = Framed::from_parts(ResponseCodec::<N>::new(), inner, state);
 
         match next!(framed) {
             None => {
@@ -182,9 +173,15 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             }
         }
 
-        let inner = framed.into_parts().1;
+        let (_, inner, state) = framed.into_parts();
 
-        Ok(inner)
+        let framed = Framed::from_parts(codec, inner, state);
+
+        Ok(Self {
+            fragmented: None,
+            fragments_buffer: self.fragments_buffer,
+            framed,
+        })
     }
 
     pub async fn maybe_next<'this>(
