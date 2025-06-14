@@ -64,6 +64,12 @@ const SIZE: usize = 24 * 1024 * 1024;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let count = get_case_count().await?;
 
+    let split = |stream: FromTokio<TcpStream>| {
+        let (read, write) = tokio::io::split(stream.into_inner());
+
+        (FromTokio::new(read), FromTokio::new(write))
+    };
+
     for case in 1..=count {
         println!("Running case {case} of {count}");
 
@@ -79,11 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
 
-        let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(|stream| {
-            let (read, write) = tokio::io::split(stream.into_inner());
-
-            (FromTokio::new(read), FromTokio::new(write))
-        });
+        let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
 
         loop {
             match next!(websocketz_read) {
