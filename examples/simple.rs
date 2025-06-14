@@ -6,6 +6,10 @@ use websocketz::{Message, Options, Websockets, next};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt()
+        .with_env_filter("framez=trace")
+        .init();
+
     let stream = TcpStream::connect("127.0.0.1:8080").await?;
 
     let read_buf = &mut [0u8; 8192 * 2];
