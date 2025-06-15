@@ -1,4 +1,4 @@
-use crate::error::DecodeError;
+use crate::error::FrameDecodeError;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +18,7 @@ impl OpCode {
 }
 
 impl TryFrom<u8> for OpCode {
-    type Error = DecodeError;
+    type Error = FrameDecodeError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -28,7 +28,7 @@ impl TryFrom<u8> for OpCode {
             v if v == OpCode::Close as u8 => Ok(OpCode::Close),
             v if v == OpCode::Ping as u8 => Ok(OpCode::Ping),
             v if v == OpCode::Pong as u8 => Ok(OpCode::Pong),
-            _ => Err(DecodeError::InvalidOpCode),
+            _ => Err(FrameDecodeError::InvalidOpCode),
         }
     }
 }

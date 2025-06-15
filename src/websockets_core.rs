@@ -1,5 +1,3 @@
-use core::panic;
-
 use base64::{Engine as _, engine::general_purpose};
 use embedded_io_async::{Read, Write};
 use framez::Framed;
@@ -119,7 +117,6 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         Ok(key_as_base64)
     }
 
-    // TODO: err
     pub async fn handshake<const N: usize>(
         mut self,
         options: Options<'_, '_>,
@@ -149,14 +146,16 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             },
         ];
 
-        let request = Request::new("GET", options.path, headers, options.headers);
+        let request = Request::get(options.path, headers, options.headers);
 
         let (codec, inner, state) = self.framed.into_parts();
 
         let mut framed = Framed::from_parts(RequestCodec::new(), inner, state.reset());
 
-        // TODO: err
-        framed.send(request).await.unwrap();
+        framed
+            .send(request)
+            .await
+            .map_err(|err| Error::Write(WriteError::WriteHttp(err)))?;
 
         let (_, inner, state) = framed.into_parts();
 
@@ -164,15 +163,33 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         match next!(framed) {
             None => {
-                // TODO
-                panic!("Unexpected response received");
+                return Err(Error::Handshake(HandshakeError::ConnectionClosed));
             }
-            Some(Err(_)) => {
-                // TODO
-                panic!("Failed to read response");
+            Some(Err(err)) => {
+                return Err(Error::Read(ReadError::ReadHttp(err)));
             }
             Some(Ok(response)) => {
-                // TODO: verify
+                if !matches!(response.code(), Some(101)) {
+                    return Err(Error::Handshake(HandshakeError::InvalidStatusCode {
+                        code: response.code(),
+                    }));
+                }
+
+                if !response
+                    .header_value_str("upgrade")
+                    .is_some_and(|v| v.eq_ignore_ascii_case("websocket"))
+                {
+                    return Err(Error::Handshake(HandshakeError::InvalidUpgradeHeader));
+                }
+
+                if !response
+                    .header_value_str("connection")
+                    .is_some_and(|v| v.eq_ignore_ascii_case("upgrade"))
+                {
+                    return Err(Error::Handshake(HandshakeError::InvalidConnectionHeader));
+                }
+
+                // TODO: InvalidAcceptHeader
             }
         }
 
@@ -196,7 +213,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         let frame = match self.framed.maybe_next().await? {
             Ok(Some(frame)) => frame,
             Ok(None) => return Some(Ok(None)),
-            Err(err) => return Some(Err(Error::Read(ReadError::Read(err)))),
+            Err(err) => return Some(Err(Error::Read(ReadError::ReadFrame(err)))),
         };
 
         match frame.opcode() {
@@ -326,7 +343,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         self.framed
             .send(message)
             .await
-            .map_err(|err| Error::Write(WriteError::Write(err)))?;
+            .map_err(|err| Error::Write(WriteError::WriteFrame(err)))?;
 
         Ok(())
     }
@@ -344,7 +361,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             self.framed
                 .send(frame)
                 .await
-                .map_err(|err| Error::Write(WriteError::Write(err)))?;
+                .map_err(|err| Error::Write(WriteError::WriteFrame(err)))?;
         }
 
         Ok(())

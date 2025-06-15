@@ -1,6 +1,8 @@
 use framez::{decode::Decoder, encode::Encoder};
 use httparse::{Header, Status};
 
+use crate::error::{HttpDecodeError, HttpEncodeError};
+
 #[derive(Debug)]
 pub struct Response<'buf, const N: usize> {
     version: Option<u8>,
@@ -10,7 +12,7 @@ pub struct Response<'buf, const N: usize> {
 }
 
 impl<'buf, const N: usize> Response<'buf, N> {
-    pub fn new(
+    pub const fn new(
         version: Option<u8>,
         code: Option<u16>,
         reason: Option<&'buf str>,
@@ -39,19 +41,34 @@ impl<'buf, const N: usize> Response<'buf, N> {
     pub const fn headers(&self) -> &[Header<'buf>; N] {
         &self.headers
     }
+
+    pub fn header(&self, name: &str) -> Option<&Header<'buf>> {
+        self.headers
+            .iter()
+            .find(|h| h.name.eq_ignore_ascii_case(name))
+    }
+
+    pub fn header_value(&self, name: &str) -> Option<&'buf [u8]> {
+        self.header(name).map(|h| h.value)
+    }
+
+    pub fn header_value_str(&self, name: &str) -> Option<&'buf str> {
+        self.header_value(name)
+            .and_then(|v| core::str::from_utf8(v).ok())
+    }
 }
 
 #[derive(Debug)]
 pub struct ResponseCodec<const N: usize> {}
 
 impl<const N: usize> ResponseCodec<N> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         ResponseCodec {}
     }
 }
 
 impl<const N: usize> framez::decode::DecodeError for ResponseCodec<N> {
-    type Error = httparse::Error;
+    type Error = HttpDecodeError;
 }
 
 impl<'buf, const N: usize> Decoder<'buf> for ResponseCodec<N> {
@@ -61,13 +78,12 @@ impl<'buf, const N: usize> Decoder<'buf> for ResponseCodec<N> {
         let mut headers = [httparse::EMPTY_HEADER; N];
         let mut response = httparse::Response::new(&mut headers);
 
-        match response.parse(src) {
-            Ok(Status::Complete(len)) => Ok(Some((
+        match response.parse(src)? {
+            Status::Complete(len) => Ok(Some((
                 Response::new(response.version, response.code, response.reason, headers),
                 len,
             ))),
-            Ok(Status::Partial) => Ok(None),
-            Err(e) => Err(e),
+            Status::Partial => Ok(None),
         }
     }
 }
@@ -81,7 +97,7 @@ pub struct Request<'headers, 'buf> {
 }
 
 impl<'headers, 'buf> Request<'headers, 'buf> {
-    pub fn new(
+    const fn new(
         method: &'buf str,
         path: &'buf str,
         headers: &'headers [Header<'buf>],
@@ -94,26 +110,38 @@ impl<'headers, 'buf> Request<'headers, 'buf> {
             additional_headers,
         }
     }
+
+    pub const fn get(
+        path: &'buf str,
+        headers: &'headers [Header<'buf>],
+        additional_headers: &'headers [Header<'buf>],
+    ) -> Self {
+        Self::new("GET", path, headers, additional_headers)
+    }
 }
 
 #[derive(Debug)]
 pub struct RequestCodec {}
 
 impl RequestCodec {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         RequestCodec {}
     }
 }
 
 impl Encoder<Request<'_, '_>> for RequestCodec {
-    type Error = ();
+    type Error = HttpEncodeError;
 
     fn encode(&mut self, item: Request<'_, '_>, dst: &mut [u8]) -> Result<usize, Self::Error> {
         let mut pos = 0;
 
-        fn write_bytes(dst: &mut [u8], pos: &mut usize, data: &[u8]) -> Result<(), ()> {
+        fn write_bytes(
+            dst: &mut [u8],
+            pos: &mut usize,
+            data: &[u8],
+        ) -> Result<(), HttpEncodeError> {
             if *pos + data.len() > dst.len() {
-                return Err(());
+                return Err(HttpEncodeError::BufferTooSmall);
             }
 
             dst[*pos..*pos + data.len()].copy_from_slice(data);

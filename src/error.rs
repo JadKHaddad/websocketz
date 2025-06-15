@@ -1,7 +1,7 @@
 use crate::CloseCode;
 
 #[derive(Debug, thiserror::Error)]
-pub enum DecodeError {
+pub enum FrameDecodeError {
     #[error("Reserved bits must be zero")]
     ReservedBitsNotZero,
     #[error("Invalid opcode")]
@@ -13,18 +13,36 @@ pub enum DecodeError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum EncodeError {
+pub enum FrameEncodeError {
+    #[error("Buffer too small")]
+    BufferTooSmall,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum HttpDecodeError {
+    #[error(transparent)]
+    Parse(#[from] httparse::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum HttpEncodeError {
     #[error("Buffer too small")]
     BufferTooSmall,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError<I> {
-    #[error("Read error: {0}")]
-    Read(
+    #[error("Read frame error: {0}")]
+    ReadFrame(
         #[source]
         #[from]
-        framez::ReadError<I, DecodeError>,
+        framez::ReadError<I, FrameDecodeError>,
+    ),
+    #[error("Read http error: {0}")]
+    ReadHttp(
+        #[source]
+        #[from]
+        framez::ReadError<I, HttpDecodeError>,
     ),
     #[error("Invalid close frame")]
     InvalidCloseFrame,
@@ -42,11 +60,17 @@ pub enum ReadError<I> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum WriteError<I> {
-    #[error("Write error: {0}")]
-    Write(
+    #[error("Write frame error: {0}")]
+    WriteFrame(
         #[source]
         #[from]
-        framez::WriteError<I, EncodeError>,
+        framez::WriteError<I, FrameEncodeError>,
+    ),
+    #[error("Write http error: {0}")]
+    WriteHttp(
+        #[source]
+        #[from]
+        framez::WriteError<I, HttpEncodeError>,
     ),
 }
 
@@ -54,6 +78,16 @@ pub enum WriteError<I> {
 pub enum HandshakeError {
     #[error("Failed to generate websockets key: {0}")]
     KeyGeneration(base64::EncodeSliceError),
+    #[error("Connection closed before handshake")]
+    ConnectionClosed,
+    #[error("Invalid status code: {code:?}")]
+    InvalidStatusCode { code: Option<u16> },
+    #[error("Invalid upgrade header")]
+    InvalidUpgradeHeader,
+    #[error("Invalid connection header")]
+    InvalidConnectionHeader,
+    #[error("Invalid accept header")]
+    InvalidAcceptHeader,
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -4,7 +4,7 @@ use rand_core::RngCore;
 
 use crate::{
     Frame, FrameMut, Header, Message, OpCode,
-    error::{DecodeError, EncodeError},
+    error::{FrameDecodeError, FrameEncodeError},
 };
 
 #[derive(Debug)]
@@ -76,7 +76,7 @@ impl<R> FramesCodec<R> {
 }
 
 impl<R> framez::decode::DecodeError for FramesCodec<R> {
-    type Error = DecodeError;
+    type Error = FrameDecodeError;
 }
 
 impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
@@ -98,7 +98,7 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
                     let rsv3 = src[0] & 0b00010000 != 0;
 
                     if rsv1 || rsv2 || rsv3 {
-                        return Err(DecodeError::ReservedBitsNotZero);
+                        return Err(FrameDecodeError::ReservedBitsNotZero);
                     }
 
                     let opcode = OpCode::try_from(src[0] & 0b00001111)?;
@@ -153,11 +153,11 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
                     });
 
                     if opcode.is_control() && !fin {
-                        return Err(DecodeError::ControlFrameFragmented);
+                        return Err(FrameDecodeError::ControlFrameFragmented);
                     }
 
                     if matches!(opcode, OpCode::Ping) && payload_len > 125 {
-                        return Err(DecodeError::PingFrameTooLarge);
+                        return Err(FrameDecodeError::PingFrameTooLarge);
                     }
 
                     let min_src_len = min_src_len + payload_len;
@@ -199,14 +199,14 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
 }
 
 impl<R: RngCore> Encoder<Message<'_>> for FramesCodec<R> {
-    type Error = EncodeError;
+    type Error = FrameEncodeError;
 
     fn encode(&mut self, item: Message, dst: &mut [u8]) -> Result<usize, Self::Error> {
         let header = Header::new(true, item.opcode(), item.len());
 
         let head_len = header
             .write(&mut dst[..])
-            .ok_or(EncodeError::BufferTooSmall)?;
+            .ok_or(FrameEncodeError::BufferTooSmall)?;
 
         let mask: Option<[u8; 4]> = self.mask.then(|| self.rng.random());
 
@@ -214,7 +214,7 @@ impl<R: RngCore> Encoder<Message<'_>> for FramesCodec<R> {
             None => head_len,
             Some(mask) => {
                 if head_len + 4 > dst.len() {
-                    return Err(EncodeError::BufferTooSmall);
+                    return Err(FrameEncodeError::BufferTooSmall);
                 }
 
                 dst[1] |= 0x80;
@@ -226,7 +226,7 @@ impl<R: RngCore> Encoder<Message<'_>> for FramesCodec<R> {
 
         let payload_len = item
             .write(&mut dst[head_len..])
-            .ok_or(EncodeError::BufferTooSmall)?;
+            .ok_or(FrameEncodeError::BufferTooSmall)?;
 
         if let Some(mask) = mask {
             crate::mask::unmask(&mut dst[head_len..head_len + payload_len], mask);
@@ -237,14 +237,14 @@ impl<R: RngCore> Encoder<Message<'_>> for FramesCodec<R> {
 }
 
 impl<R: RngCore> Encoder<Frame<'_>> for FramesCodec<R> {
-    type Error = EncodeError;
+    type Error = FrameEncodeError;
 
     fn encode(&mut self, item: Frame, dst: &mut [u8]) -> Result<usize, Self::Error> {
         let header = Header::new(item.is_final(), item.opcode(), item.payload().len());
 
         let head_len = header
             .write(&mut dst[..])
-            .ok_or(EncodeError::BufferTooSmall)?;
+            .ok_or(FrameEncodeError::BufferTooSmall)?;
 
         let mask: Option<[u8; 4]> = self.mask.then(|| self.rng.random());
 
@@ -252,7 +252,7 @@ impl<R: RngCore> Encoder<Frame<'_>> for FramesCodec<R> {
             None => head_len,
             Some(mask) => {
                 if head_len + 4 > dst.len() {
-                    return Err(EncodeError::BufferTooSmall);
+                    return Err(FrameEncodeError::BufferTooSmall);
                 }
 
                 dst[1] |= 0x80;
@@ -264,7 +264,7 @@ impl<R: RngCore> Encoder<Frame<'_>> for FramesCodec<R> {
 
         let payload_len = item
             .write_payload(&mut dst[head_len..])
-            .ok_or(EncodeError::BufferTooSmall)?;
+            .ok_or(FrameEncodeError::BufferTooSmall)?;
 
         if let Some(mask) = mask {
             crate::mask::unmask(&mut dst[head_len..head_len + payload_len], mask);
