@@ -2,7 +2,7 @@
 ///
 /// # Return value
 ///
-/// - `Some(Ok(frame))` if a message was successfully decoded. Call `next` again to read more messages.
+/// - `Some(Ok(message))` if a message was successfully decoded. Call `next` again to read more messages.
 /// - `Some(Err(error))` if an error occurred. The caller should stop reading.
 /// - `None` if eof was reached. The caller should stop reading.
 #[macro_export]

@@ -43,3 +43,6 @@ use websockets_core::WebsocketsCore;
 
 mod websockets;
 pub use websockets::{Websockets, WebsocketsRead, WebsocketsWrite};
+
+#[cfg(test)]
+extern crate std;

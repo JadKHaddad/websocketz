@@ -148,3 +148,115 @@ impl Encoder<Request<'_, '_>> for RequestCodec {
         Ok(pos)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod decode {
+        use std::vec::Vec;
+
+        use super::*;
+
+        const OK_RESPONSE: &[u8] =
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n\0\0\0\0\0\0";
+
+        fn ok_response() -> Vec<u8> {
+            OK_RESPONSE.to_vec()
+        }
+
+        fn partial_response() -> Vec<u8> {
+            OK_RESPONSE[..16].to_vec()
+        }
+
+        #[test]
+        fn ok() {
+            let mut response = ok_response();
+            let mut codec = ResponseCodec::<2>::new();
+
+            let (response, len) = codec.decode(&mut response).unwrap().unwrap();
+
+            assert_eq!(response.code(), Some(200));
+            assert_eq!(
+                response.header_value_str("content-type"),
+                Some("text/plain")
+            );
+            assert_eq!(response.header_value_str("Connection"), Some("close"));
+
+            assert_eq!(len, 64);
+        }
+
+        #[test]
+        fn too_many_headers() {
+            let mut response = ok_response();
+            let mut codec = ResponseCodec::<1>::new();
+
+            let err = codec.decode(&mut response).unwrap_err();
+
+            assert!(matches!(
+                err,
+                HttpDecodeError::Parse(httparse::Error::TooManyHeaders)
+            ));
+        }
+
+        #[test]
+        fn partial() {
+            let mut response = partial_response();
+            let mut codec = ResponseCodec::<2>::new();
+
+            let result = codec.decode(&mut response).unwrap();
+
+            assert!(result.is_none());
+        }
+    }
+
+    mod encode {
+        use super::*;
+
+        const OK_REQUEST: &[u8] =
+            b"GET /index.html HTTP/1.1\r\nHost: example.com\r\nUser-Agent: test-agent\r\nAccept: text/html\r\n\r\n";
+
+        const HEADERS: &[Header] = &[
+            Header {
+                name: "Host",
+                value: b"example.com",
+            },
+            Header {
+                name: "User-Agent",
+                value: b"test-agent",
+            },
+        ];
+
+        const ADDITIONAL_HEADERS: &[Header] = &[Header {
+            name: "Accept",
+            value: b"text/html",
+        }];
+
+        #[test]
+        fn ok() {
+            let request = Request::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+
+            let mut codec = RequestCodec::new();
+
+            let mut buf = std::vec![0; 1024];
+
+            let len = codec.encode(request, &mut buf).unwrap();
+
+            assert!(len == OK_REQUEST.len());
+            assert_eq!(&buf[..len], OK_REQUEST);
+        }
+
+        #[test]
+        fn buffer_too_small() {
+            let request = Request::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+
+            let mut codec = RequestCodec::new();
+
+            let mut buf = std::vec![0; 10];
+
+            let err = codec.encode(request, &mut buf).unwrap_err();
+
+            assert!(matches!(err, HttpEncodeError::BufferTooSmall));
+        }
+    }
+}
