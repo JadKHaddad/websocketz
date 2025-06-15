@@ -4,10 +4,10 @@ use crate::CloseCode;
 pub enum FrameDecodeError {
     #[error("Reserved bits must be zero")]
     ReservedBitsNotZero,
-    #[error("Payload too large")]
-    PayloadTooLarge,
     #[error("Invalid opcode")]
     InvalidOpCode,
+    #[error("Payload too large")]
+    PayloadTooLarge,
     #[error("Control frame fragmented")]
     ControlFrameFragmented,
     #[error("Ping frame too large")]
