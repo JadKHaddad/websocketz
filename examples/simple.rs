@@ -42,6 +42,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await
     .map_err(|_| "Handshake failed")?;
 
+    println!(
+        "Number of framable bytes after handshake: {}",
+        websocketz.framable()
+    );
+
     let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(|stream| {
         let (read, write) = tokio::io::split(stream.into_inner());
         (FromTokio::new(read), FromTokio::new(write))

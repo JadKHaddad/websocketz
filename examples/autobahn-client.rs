@@ -31,6 +31,11 @@ async fn connect<'buf>(
     .await
     .map_err(|_| "Handshake failed")?;
 
+    println!(
+        "Number of framable bytes after handshake: {}",
+        websocketz.framable()
+    );
+
     Ok(websocketz)
 }
 

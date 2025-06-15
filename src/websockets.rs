@@ -74,6 +74,12 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         self.core.into_inner()
     }
 
+    /// Returns the number of bytes that can be framed.
+    #[inline]
+    pub fn framable(&self) -> usize {
+        self.core.framable()
+    }
+
     pub async fn handshake<const N: usize>(
         self,
         options: Options<'_, '_>,
@@ -236,6 +242,12 @@ impl<'buf, RW> WebsocketsRead<'buf, RW> {
     #[inline]
     pub fn into_inner(self) -> RW {
         self.core.into_inner()
+    }
+
+    /// Returns the number of bytes that can be framed.
+    #[inline]
+    pub fn framable(&self) -> usize {
+        self.core.framable()
     }
 
     pub async fn maybe_next<'this>(

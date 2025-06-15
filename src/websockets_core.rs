@@ -100,6 +100,12 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         self.framed.into_parts().1
     }
 
+    /// Returns the number of bytes that can be framed.
+    #[inline]
+    pub fn framable(&self) -> usize {
+        self.framed.framable()
+    }
+
     fn generate_key(&mut self) -> Result<[u8; 24], HandshakeError>
     where
         Rng: RngCore,
