@@ -303,28 +303,35 @@ mod tests {
 
         #[test]
         #[cfg(target_pointer_width = "32")]
+        #[ignore = "TODO"]
         fn payload_too_large() {
             //TODO
         }
 
         #[test]
+        #[ignore = "TODO"]
         fn control_frame_fragmented() {
             //TODO
         }
 
         #[test]
+        #[ignore = "TODO"]
         fn ping_frame_too_large() {
             //TODO
         }
     }
 
     mod encode {
-        use super::*;
+        #[test]
+        #[ignore = "TODO"]
+        fn ok() {
+            //TODO
+        }
 
         #[test]
-        fn ok() {}
-
-        #[test]
-        fn buffer_too_small() {}
+        #[ignore = "TODO"]
+        fn buffer_too_small() {
+            //TODO
+        }
     }
 }

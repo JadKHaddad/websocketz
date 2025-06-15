@@ -46,7 +46,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
         options: Options<'_, '_>,
-    ) -> Result<Self, ()>
+    ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,
@@ -54,7 +54,6 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         Self::client(inner, rng, read_buffer, write_buffer, fragments_buffer)
             .handshake::<N>(options)
             .await
-            .map_err(|_| ())
     }
 
     /// Returns reference to the reader/writer.
