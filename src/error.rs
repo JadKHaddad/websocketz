@@ -6,6 +6,7 @@ pub enum FrameDecodeError {
     ReservedBitsNotZero,
     #[error("Invalid opcode")]
     InvalidOpCode,
+    // The payload length comes as an u64, converting it to usize might fail on 32-bit systems
     #[error("Payload too large")]
     PayloadTooLarge,
     #[error("Control frame fragmented")]

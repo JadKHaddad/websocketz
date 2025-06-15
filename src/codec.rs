@@ -302,6 +302,7 @@ mod tests {
         }
 
         #[test]
+        #[cfg(target_pointer_width = "32")]
         fn payload_too_large() {
             //TODO
         }
