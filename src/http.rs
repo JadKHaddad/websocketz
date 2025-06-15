@@ -191,10 +191,10 @@ mod tests {
             let mut response = ok_response();
             let mut codec = ResponseCodec::<1>::new();
 
-            let err = codec.decode(&mut response).unwrap_err();
+            let error = codec.decode(&mut response).unwrap_err();
 
             assert!(matches!(
-                err,
+                error,
                 HttpDecodeError::Parse(httparse::Error::TooManyHeaders)
             ));
         }
@@ -254,9 +254,9 @@ mod tests {
 
             let mut buf = std::vec![0; 10];
 
-            let err = codec.encode(request, &mut buf).unwrap_err();
+            let error = codec.encode(request, &mut buf).unwrap_err();
 
-            assert!(matches!(err, HttpEncodeError::BufferTooSmall));
+            assert!(matches!(error, HttpEncodeError::BufferTooSmall));
         }
     }
 }
