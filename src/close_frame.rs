@@ -9,7 +9,7 @@ pub struct CloseFrame<'a> {
 }
 
 impl<'a> CloseFrame<'a> {
-    /// Creates a new `CloseFrame` instance.
+    /// Creates a new [`CloseFrame`].
     pub fn new(code: CloseCode, reason: &'a str) -> Self {
         Self { code, reason }
     }

@@ -7,6 +7,7 @@ pub struct Options<'headers, 'a> {
 }
 
 impl<'headers, 'a> Options<'headers, 'a> {
+    /// Creates a new [`Options`].
     pub fn new(path: &'a str, headers: &'headers [Header<'a>]) -> Self {
         Options { path, headers }
     }

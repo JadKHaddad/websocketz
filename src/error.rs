@@ -49,3 +49,19 @@ pub enum WriteError<I> {
         framez::WriteError<I, EncodeError>,
     ),
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum HandshakeError {
+    #[error("Failed to generate websockets key: {0}")]
+    KeyGeneration(base64::EncodeSliceError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error<I> {
+    #[error(transparent)]
+    Read(#[from] ReadError<I>),
+    #[error(transparent)]
+    Write(#[from] WriteError<I>),
+    #[error("Handshake error: {0}")]
+    Handshake(#[from] HandshakeError),
+}

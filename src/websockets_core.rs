@@ -1,6 +1,6 @@
 use core::panic;
 
-use base64::{EncodeSliceError, Engine as _, engine::general_purpose};
+use base64::{Engine as _, engine::general_purpose};
 use embedded_io_async::{Read, Write};
 use framez::Framed;
 use httparse::Header;
@@ -9,7 +9,7 @@ use rand::RngCore;
 use crate::{
     CloseCode, CloseFrame, FramesCodec, Message, OpCode, Options, Request, RequestCodec,
     ResponseCodec,
-    error::{ReadError, WriteError},
+    error::{Error, HandshakeError, ReadError, WriteError},
     next,
 };
 
@@ -102,7 +102,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         self.framed.into_parts().1
     }
 
-    fn generate_key(&mut self) -> Result<[u8; 24], EncodeSliceError>
+    fn generate_key(&mut self) -> Result<[u8; 24], HandshakeError>
     where
         Rng: RngCore,
     {
@@ -112,19 +112,23 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         self.framed.codec_mut().rng_mut().fill_bytes(&mut key);
 
-        general_purpose::STANDARD.encode_slice(key, &mut key_as_base64)?;
+        general_purpose::STANDARD
+            .encode_slice(key, &mut key_as_base64)
+            .map_err(HandshakeError::KeyGeneration)?;
 
         Ok(key_as_base64)
     }
 
     // TODO: err
-    pub async fn handshake<const N: usize>(mut self, options: Options<'_, '_>) -> Result<Self, ()>
+    pub async fn handshake<const N: usize>(
+        mut self,
+        options: Options<'_, '_>,
+    ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
-        // TODO: err
-        let key = self.generate_key().unwrap();
+        let key = self.generate_key()?;
 
         let headers = &[
             Header {
@@ -152,7 +156,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         let mut framed = Framed::from_parts(RequestCodec::new(), inner, state.reset());
 
         // TODO: err
-        framed.send(request).await.map_err(|_| ())?;
+        framed.send(request).await.unwrap();
 
         let (_, inner, state) = framed.into_parts();
 
@@ -185,21 +189,21 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
     pub async fn maybe_next<'this>(
         &'this mut self,
-    ) -> Option<Result<Option<Message<'this>>, ReadError<RW::Error>>>
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
         RW: Read,
     {
         let frame = match self.framed.maybe_next().await? {
             Ok(Some(frame)) => frame,
             Ok(None) => return Some(Ok(None)),
-            Err(err) => return Some(Err(ReadError::Read(err))),
+            Err(err) => return Some(Err(Error::Read(ReadError::Read(err)))),
         };
 
         match frame.opcode() {
             OpCode::Text | OpCode::Binary => {
                 if frame.is_final() {
                     if self.fragmented.is_some() {
-                        return Some(Err(ReadError::InvalidFragment));
+                        return Some(Err(Error::Read(ReadError::InvalidFragment)));
                     }
 
                     match frame.opcode() {
@@ -211,7 +215,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                                 return Some(Ok(Some(Message::Text(text))));
                             }
                             Err(_) => {
-                                return Some(Err(ReadError::InvalidUTF8));
+                                return Some(Err(Error::Read(ReadError::InvalidUTF8)));
                             }
                         },
                         _ => unreachable!(),
@@ -219,7 +223,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 }
 
                 if frame.payload().len() > self.fragments_buffer.len() {
-                    return Some(Err(ReadError::FragmentsBufferTooSmall));
+                    return Some(Err(Error::Read(ReadError::FragmentsBufferTooSmall)));
                 }
 
                 self.fragments_buffer[..frame.payload().len()].copy_from_slice(frame.payload());
@@ -232,11 +236,11 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             OpCode::Continuation => {
                 let message = match self.fragmented.as_mut() {
                     None => {
-                        return Some(Err(ReadError::InvalidContinuationFrame));
+                        return Some(Err(Error::Read(ReadError::InvalidContinuationFrame)));
                     }
                     Some(fragmented) => {
                         if fragmented.index + frame.payload().len() > self.fragments_buffer.len() {
-                            return Some(Err(ReadError::FragmentsBufferTooSmall));
+                            return Some(Err(Error::Read(ReadError::FragmentsBufferTooSmall)));
                         }
 
                         self.fragments_buffer[fragmented.index..][..frame.payload().len()]
@@ -252,7 +256,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                                     ) {
                                         Ok(text) => Some(Message::Text(text)),
                                         Err(_) => {
-                                            return Some(Err(ReadError::InvalidUTF8));
+                                            return Some(Err(Error::Read(ReadError::InvalidUTF8)));
                                         }
                                     }
                                 }
@@ -279,13 +283,13 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 match payload.len() {
                     0 => {}
                     1 => {
-                        return Some(Err(ReadError::InvalidCloseFrame));
+                        return Some(Err(Error::Read(ReadError::InvalidCloseFrame)));
                     }
                     _ => {
                         let code = CloseCode::from(u16::from_be_bytes([payload[0], payload[1]]));
 
                         if !code.is_allowed() {
-                            return Some(Err(ReadError::InvalidCloseCode { code }));
+                            return Some(Err(Error::Read(ReadError::InvalidCloseCode { code })));
                         }
 
                         match core::str::from_utf8(&payload[2..]) {
@@ -295,7 +299,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                                 return Some(Ok(Some(Message::Close(Some(close_frame)))));
                             }
                             Err(_) => {
-                                return Some(Err(ReadError::InvalidUTF8));
+                                return Some(Err(Error::Read(ReadError::InvalidUTF8)));
                             }
                         }
                     }
@@ -314,12 +318,15 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         Some(Ok(None))
     }
 
-    pub async fn send(&mut self, message: Message<'_>) -> Result<(), WriteError<RW::Error>>
+    pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
         Rng: RngCore,
     {
-        self.framed.send(message).await?;
+        self.framed
+            .send(message)
+            .await
+            .map_err(|err| Error::Write(WriteError::Write(err)))?;
 
         Ok(())
     }
@@ -328,13 +335,16 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         &mut self,
         message: Message<'_>,
         fragment_size: usize,
-    ) -> Result<(), WriteError<RW::Error>>
+    ) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
         Rng: RngCore,
     {
         for frame in message.fragments(fragment_size) {
-            self.framed.send(frame).await?;
+            self.framed
+                .send(frame)
+                .await
+                .map_err(|err| Error::Write(WriteError::Write(err)))?;
         }
 
         Ok(())

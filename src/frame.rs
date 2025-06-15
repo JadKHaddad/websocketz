@@ -12,7 +12,7 @@ pub struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-    /// Creates a new `Frame` instance.
+    /// Creates a new [`Frame`].
     pub fn new(fin: bool, opcode: OpCode, payload: &'a [u8]) -> Self {
         Self {
             fin,
@@ -61,7 +61,7 @@ pub struct FrameMut<'a> {
 }
 
 impl<'a> FrameMut<'a> {
-    /// Creates a new `FrameMut` instance.
+    /// Creates a new [`FrameMut`].
     pub fn new(fin: bool, opcode: OpCode, mask: Option<[u8; 4]>, payload: &'a mut [u8]) -> Self {
         Self {
             fin,

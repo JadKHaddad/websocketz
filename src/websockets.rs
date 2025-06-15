@@ -5,11 +5,7 @@ use framez::{
 };
 use rand::RngCore;
 
-use crate::{
-    Message, Options, WebsocketsCore,
-    codec::FramesCodec,
-    error::{ReadError, WriteError},
-};
+use crate::{FramesCodec, Message, Options, WebsocketsCore, error::Error};
 
 #[derive(Debug)]
 pub struct Websockets<'buf, RW, Rng> {
@@ -79,7 +75,10 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         self.core.into_inner()
     }
 
-    pub async fn handshake<const N: usize>(self, options: Options<'_, '_>) -> Result<Self, ()>
+    pub async fn handshake<const N: usize>(
+        self,
+        options: Options<'_, '_>,
+    ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,
@@ -127,14 +126,14 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     /// ```
     pub async fn maybe_next<'this>(
         &'this mut self,
-    ) -> Option<Result<Option<Message<'this>>, ReadError<RW::Error>>>
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
         RW: Read,
     {
         self.core.maybe_next().await
     }
 
-    pub async fn send(&mut self, message: Message<'_>) -> Result<(), WriteError<RW::Error>>
+    pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
         Rng: RngCore,
@@ -146,7 +145,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         &mut self,
         message: Message<'_>,
         fragment_size: usize,
-    ) -> Result<(), WriteError<RW::Error>>
+    ) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
         Rng: RngCore,
@@ -242,7 +241,7 @@ impl<'buf, RW> WebsocketsRead<'buf, RW> {
 
     pub async fn maybe_next<'this>(
         &'this mut self,
-    ) -> Option<Result<Option<Message<'this>>, ReadError<RW::Error>>>
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
         RW: Read,
     {
@@ -294,7 +293,7 @@ impl<'buf, RW, Rng> WebsocketsWrite<'buf, RW, Rng> {
         self.core.into_inner()
     }
 
-    pub async fn send(&mut self, message: Message<'_>) -> Result<(), WriteError<RW::Error>>
+    pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
         Rng: RngCore,
@@ -306,7 +305,7 @@ impl<'buf, RW, Rng> WebsocketsWrite<'buf, RW, Rng> {
         &mut self,
         message: Message<'_>,
         fragment_size: usize,
-    ) -> Result<(), WriteError<RW::Error>>
+    ) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
         Rng: RngCore,

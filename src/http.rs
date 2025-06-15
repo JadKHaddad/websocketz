@@ -123,13 +123,11 @@ impl Encoder<Request<'_, '_>> for RequestCodec {
             Ok(())
         }
 
-        // Request line: METHOD PATH HTTP/1.1\r\n
         write_bytes(dst, &mut pos, item.method.as_bytes())?;
         write_bytes(dst, &mut pos, b" ")?;
         write_bytes(dst, &mut pos, item.path.as_bytes())?;
         write_bytes(dst, &mut pos, b" HTTP/1.1\r\n")?;
 
-        // Headers
         for header in item.headers.iter() {
             write_bytes(dst, &mut pos, header.name.as_bytes())?;
             write_bytes(dst, &mut pos, b": ")?;
@@ -144,7 +142,6 @@ impl Encoder<Request<'_, '_>> for RequestCodec {
             write_bytes(dst, &mut pos, b"\r\n")?;
         }
 
-        // End of headers
         write_bytes(dst, &mut pos, b"\r\n")?;
 
         Ok(pos)

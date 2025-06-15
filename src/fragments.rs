@@ -56,6 +56,7 @@ impl<'a> Iterator for Iter<'a> {
         self.pos = end;
 
         let fin = self.pos == self.data.len();
+
         let opcode = if start == 0 {
             self.opcode
         } else {
