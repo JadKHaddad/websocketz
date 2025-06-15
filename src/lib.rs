@@ -45,4 +45,7 @@ mod websockets;
 pub use websockets::{Websockets, WebsocketsRead, WebsocketsWrite};
 
 #[cfg(test)]
+mod tests;
+
+#[cfg(test)]
 extern crate std;
