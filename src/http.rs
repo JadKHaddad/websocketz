@@ -5,41 +5,17 @@ use crate::error::{HttpDecodeError, HttpEncodeError};
 
 #[derive(Debug)]
 pub struct Response<'buf, const N: usize> {
-    version: Option<u8>,
     code: Option<u16>,
-    reason: Option<&'buf str>,
     headers: [Header<'buf>; N],
 }
 
 impl<'buf, const N: usize> Response<'buf, N> {
-    pub const fn new(
-        version: Option<u8>,
-        code: Option<u16>,
-        reason: Option<&'buf str>,
-        headers: [Header<'buf>; N],
-    ) -> Self {
-        Response {
-            version,
-            code,
-            reason,
-            headers,
-        }
-    }
-
-    pub const fn version(&self) -> Option<u8> {
-        self.version
+    pub const fn new(code: Option<u16>, headers: [Header<'buf>; N]) -> Self {
+        Response { code, headers }
     }
 
     pub const fn code(&self) -> Option<u16> {
         self.code
-    }
-
-    pub const fn reason(&self) -> Option<&'buf str> {
-        self.reason
-    }
-
-    pub const fn headers(&self) -> &[Header<'buf>; N] {
-        &self.headers
     }
 
     pub fn header(&self, name: &str) -> Option<&Header<'buf>> {
@@ -79,10 +55,7 @@ impl<'buf, const N: usize> Decoder<'buf> for ResponseCodec<N> {
         let mut response = httparse::Response::new(&mut headers);
 
         match response.parse(src)? {
-            Status::Complete(len) => Ok(Some((
-                Response::new(response.version, response.code, response.reason, headers),
-                len,
-            ))),
+            Status::Complete(len) => Ok(Some((Response::new(response.code, headers), len))),
             Status::Partial => Ok(None),
         }
     }
