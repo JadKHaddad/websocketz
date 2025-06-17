@@ -976,6 +976,7 @@ dependencies = [
  "hyper-util",
  "rand 0.9.1",
  "rand_core 0.9.3",
+ "sha1",
  "thiserror 2.0.12",
  "tokio",
  "tracing-subscriber",

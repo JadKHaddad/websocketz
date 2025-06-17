@@ -4,6 +4,8 @@ use framez::Framed;
 use httparse::Header;
 use rand::RngCore;
 
+use sha1::{Digest, Sha1};
+
 use crate::{
     CloseCode, CloseFrame, FramesCodec, Message, OpCode, Options, Request, RequestCodec,
     ResponseCodec,
@@ -106,21 +108,38 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         self.framed.framable()
     }
 
-    fn generate_key(&mut self) -> Result<[u8; 24], HandshakeError>
+    fn generate_sec_key(&mut self) -> Result<[u8; 24], HandshakeError>
     where
         Rng: RngCore,
     {
-        let mut key_as_base64: [u8; 24] = [0; 24];
-
         let mut key: [u8; 16] = [0; 16];
 
         self.framed.codec_mut().rng_mut().fill_bytes(&mut key);
 
-        general_purpose::STANDARD
-            .encode_slice(key, &mut key_as_base64)
-            .map_err(HandshakeError::KeyGeneration)?;
+        let mut encoded: [u8; 24] = [0; 24];
 
-        Ok(key_as_base64)
+        general_purpose::STANDARD
+            .encode_slice(key, &mut encoded)
+            .map_err(HandshakeError::SecKeyGeneration)?;
+
+        Ok(encoded)
+    }
+
+    fn generate_sec_accept(sec_key: &[u8]) -> Result<[u8; 28], HandshakeError> {
+        let mut sha1 = Sha1::new();
+
+        sha1.update(sec_key);
+        sha1.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+
+        let hash = sha1.finalize();
+
+        let mut encoded: [u8; 28] = [0; 28];
+
+        general_purpose::STANDARD
+            .encode_slice(hash, &mut encoded)
+            .map_err(HandshakeError::SecAcceptGeneration)?;
+
+        Ok(encoded)
     }
 
     pub async fn handshake<const N: usize>(
@@ -131,7 +150,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        let key = self.generate_key()?;
+        let sec_key = self.generate_sec_key()?;
 
         let headers = &[
             Header {
@@ -148,7 +167,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             },
             Header {
                 name: "Sec-WebSocket-Key",
-                value: &key,
+                value: &sec_key,
             },
         ];
 
@@ -195,7 +214,16 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                     return Err(Error::Handshake(HandshakeError::InvalidConnectionHeader));
                 }
 
-                // TODO: InvalidAcceptHeader
+                let sec_accept = response
+                    .header_value("sec-websocket-accept")
+                    .ok_or_else(|| Error::Handshake(HandshakeError::MissingAcceptHeader))?;
+
+                let expected_sec_accept =
+                    Self::generate_sec_accept(&sec_key).map_err(Error::Handshake)?;
+
+                if sec_accept != expected_sec_accept {
+                    return Err(Error::Handshake(HandshakeError::InvalidAcceptHeader));
+                }
             }
         }
 

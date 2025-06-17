@@ -79,8 +79,10 @@ pub enum WriteError<I> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandshakeError {
-    #[error("Failed to generate websockets key: {0}")]
-    KeyGeneration(base64::EncodeSliceError),
+    #[error("Failed to generate sec websocket key: {0}")]
+    SecKeyGeneration(base64::EncodeSliceError),
+    #[error("Failed to generate sec websocket accept: {0}")]
+    SecAcceptGeneration(base64::EncodeSliceError),
     #[error("Connection closed before handshake")]
     ConnectionClosed,
     #[error("Invalid status code: {code:?}")]
@@ -89,6 +91,8 @@ pub enum HandshakeError {
     InvalidUpgradeHeader,
     #[error("Invalid connection header")]
     InvalidConnectionHeader,
+    #[error("Missing accept header")]
+    MissingAcceptHeader,
     #[error("Invalid accept header")]
     InvalidAcceptHeader,
 }

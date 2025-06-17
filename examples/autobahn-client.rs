@@ -28,8 +28,7 @@ async fn connect<'buf>(
         fragments_buf,
         options,
     )
-    .await
-    .map_err(|_| "Handshake failed")?;
+    .await?;
 
     println!(
         "Number of framable bytes after handshake: {}",
