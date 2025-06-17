@@ -13,7 +13,7 @@ pub struct Websockets<'buf, RW, Rng> {
 }
 
 impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
-    /// Creates a new [`Websockets`] for a client after a successful handshake.
+    /// Creates a new [`Websockets`] client after a successful handshake.
     pub fn client(
         inner: RW,
         rng: Rng,
@@ -26,7 +26,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         }
     }
 
-    /// Creates a new [`Websockets`] for a server after a successful handshake.
+    /// Creates a new [`Websockets`] server after a successful handshake.
     pub fn server(
         inner: RW,
         rng: Rng,
@@ -39,6 +39,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         }
     }
 
+    /// Creates a new [`Websockets`] client and performs the handshake.
     pub async fn connect<const N: usize>(
         inner: RW,
         rng: Rng,
@@ -52,7 +53,25 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         Rng: RngCore,
     {
         Self::client(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .handshake::<N>(options)
+            .client_handshake::<N>(options)
+            .await
+    }
+
+    /// Creates a new [`Websockets`] server and performs the handshake.
+    pub async fn accept<const N: usize>(
+        inner: RW,
+        rng: Rng,
+        read_buffer: &'buf mut [u8],
+        write_buffer: &'buf mut [u8],
+        fragments_buffer: &'buf mut [u8],
+        options: Options<'_, '_>,
+    ) -> Result<Self, Error<RW::Error>>
+    where
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        Self::server(inner, rng, read_buffer, write_buffer, fragments_buffer)
+            .server_handshake::<N>(options)
             .await
     }
 
@@ -80,7 +99,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         self.core.framable()
     }
 
-    pub async fn handshake<const N: usize>(
+    async fn client_handshake<const N: usize>(
         self,
         options: Options<'_, '_>,
     ) -> Result<Self, Error<RW::Error>>
@@ -89,7 +108,20 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         Rng: RngCore,
     {
         Ok(Self {
-            core: self.core.handshake::<N>(options).await?,
+            core: self.core.client_handshake::<N>(options).await?,
+        })
+    }
+
+    async fn server_handshake<const N: usize>(
+        self,
+        options: Options<'_, '_>,
+    ) -> Result<Self, Error<RW::Error>>
+    where
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        Ok(Self {
+            core: self.core.server_handshake::<N>(options).await?,
         })
     }
 
@@ -204,7 +236,7 @@ impl<'buf, RW> WebsocketsRead<'buf, RW> {
         }
     }
 
-    /// Creates a new [`WebsocketsRead`] for a client after a successful handshake.
+    /// Creates a new [`WebsocketsRead`] client after a successful handshake.
     pub fn client(
         inner: RW,
         read_buffer: &'buf mut [u8],
@@ -215,7 +247,7 @@ impl<'buf, RW> WebsocketsRead<'buf, RW> {
         }
     }
 
-    /// Creates a new [`WebsocketsRead`] for a server after a successful handshake.
+    /// Creates a new [`WebsocketsRead`] server after a successful handshake.
     pub fn server(
         inner: RW,
         read_buffer: &'buf mut [u8],
@@ -272,14 +304,14 @@ impl<'buf, RW, Rng> WebsocketsWrite<'buf, RW, Rng> {
         }
     }
 
-    /// Creates a new [`WebsocketsWrite`] for a client after a successful handshake.
+    /// Creates a new [`WebsocketsWrite`] client after a successful handshake.
     pub fn client(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
             core: WebsocketsCore::client(inner, rng, &mut [], write_buffer, &mut []),
         }
     }
 
-    /// Creates a new [`WebsocketsWrite`] for a server after a successful handshake.
+    /// Creates a new [`WebsocketsWrite`] server after a successful handshake.
     pub fn server(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
             core: WebsocketsCore::server(inner, rng, &mut [], write_buffer, &mut []),

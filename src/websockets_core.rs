@@ -142,7 +142,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         Ok(encoded)
     }
 
-    pub async fn handshake<const N: usize>(
+    pub async fn client_handshake<const N: usize>(
         mut self,
         options: Options<'_, '_>,
     ) -> Result<Self, Error<RW::Error>>
@@ -236,6 +236,17 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             fragments_buffer: self.fragments_buffer,
             framed,
         })
+    }
+
+    pub async fn server_handshake<const N: usize>(
+        mut self,
+        options: Options<'_, '_>,
+    ) -> Result<Self, Error<RW::Error>>
+    where
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        todo!()
     }
 
     pub async fn maybe_next<'this>(
