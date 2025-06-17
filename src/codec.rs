@@ -251,7 +251,13 @@ impl<R: RngCore> Encoder<Message<'_>> for FramesCodec<R> {
     type Error = FrameEncodeError;
 
     fn encode(&mut self, item: Message, dst: &mut [u8]) -> Result<usize, Self::Error> {
-        self.encode_inner(true, item.opcode(), item.len(), |buf| item.write(buf), dst)
+        self.encode_inner(
+            true,
+            item.opcode(),
+            item.payload_len(),
+            |buf| item.write(buf),
+            dst,
+        )
     }
 }
 

@@ -68,43 +68,27 @@ impl Encoder<OutResponse<'_, '_>> for OutResponseCodec {
     fn encode(&mut self, item: OutResponse<'_, '_>, dst: &mut [u8]) -> Result<usize, Self::Error> {
         let mut pos = 0;
 
-        fn write_bytes(
-            dst: &mut [u8],
-            pos: &mut usize,
-            data: &[u8],
-        ) -> Result<(), HttpEncodeError> {
-            if *pos + data.len() > dst.len() {
-                return Err(HttpEncodeError::BufferTooSmall);
-            }
-
-            dst[*pos..*pos + data.len()].copy_from_slice(data);
-
-            *pos += data.len();
-
-            Ok(())
-        }
-
-        write_bytes(dst, &mut pos, b"HTTP/1.1 ")?;
-        write_bytes(dst, &mut pos, item.code.as_bytes())?;
-        write_bytes(dst, &mut pos, b" ")?;
-        write_bytes(dst, &mut pos, item.status.as_bytes())?;
-        write_bytes(dst, &mut pos, b"\r\n")?;
+        write(dst, &mut pos, b"HTTP/1.1 ")?;
+        write(dst, &mut pos, item.code.as_bytes())?;
+        write(dst, &mut pos, b" ")?;
+        write(dst, &mut pos, item.status.as_bytes())?;
+        write(dst, &mut pos, b"\r\n")?;
 
         for header in item.headers.iter() {
-            write_bytes(dst, &mut pos, header.name.as_bytes())?;
-            write_bytes(dst, &mut pos, b": ")?;
-            write_bytes(dst, &mut pos, header.value)?;
-            write_bytes(dst, &mut pos, b"\r\n")?;
+            write(dst, &mut pos, header.name.as_bytes())?;
+            write(dst, &mut pos, b": ")?;
+            write(dst, &mut pos, header.value)?;
+            write(dst, &mut pos, b"\r\n")?;
         }
 
         for header in item.additional_headers.iter() {
-            write_bytes(dst, &mut pos, header.name.as_bytes())?;
-            write_bytes(dst, &mut pos, b": ")?;
-            write_bytes(dst, &mut pos, header.value)?;
-            write_bytes(dst, &mut pos, b"\r\n")?;
+            write(dst, &mut pos, header.name.as_bytes())?;
+            write(dst, &mut pos, b": ")?;
+            write(dst, &mut pos, header.value)?;
+            write(dst, &mut pos, b"\r\n")?;
         }
 
-        write_bytes(dst, &mut pos, b"\r\n")?;
+        write(dst, &mut pos, b"\r\n")?;
 
         Ok(pos)
     }
@@ -204,42 +188,26 @@ impl Encoder<OutRequest<'_, '_>> for OutRequestCodec {
     fn encode(&mut self, item: OutRequest<'_, '_>, dst: &mut [u8]) -> Result<usize, Self::Error> {
         let mut pos = 0;
 
-        fn write_bytes(
-            dst: &mut [u8],
-            pos: &mut usize,
-            data: &[u8],
-        ) -> Result<(), HttpEncodeError> {
-            if *pos + data.len() > dst.len() {
-                return Err(HttpEncodeError::BufferTooSmall);
-            }
-
-            dst[*pos..*pos + data.len()].copy_from_slice(data);
-
-            *pos += data.len();
-
-            Ok(())
-        }
-
-        write_bytes(dst, &mut pos, item.method.as_bytes())?;
-        write_bytes(dst, &mut pos, b" ")?;
-        write_bytes(dst, &mut pos, item.path.as_bytes())?;
-        write_bytes(dst, &mut pos, b" HTTP/1.1\r\n")?;
+        write(dst, &mut pos, item.method.as_bytes())?;
+        write(dst, &mut pos, b" ")?;
+        write(dst, &mut pos, item.path.as_bytes())?;
+        write(dst, &mut pos, b" HTTP/1.1\r\n")?;
 
         for header in item.headers.iter() {
-            write_bytes(dst, &mut pos, header.name.as_bytes())?;
-            write_bytes(dst, &mut pos, b": ")?;
-            write_bytes(dst, &mut pos, header.value)?;
-            write_bytes(dst, &mut pos, b"\r\n")?;
+            write(dst, &mut pos, header.name.as_bytes())?;
+            write(dst, &mut pos, b": ")?;
+            write(dst, &mut pos, header.value)?;
+            write(dst, &mut pos, b"\r\n")?;
         }
 
         for header in item.additional_headers.iter() {
-            write_bytes(dst, &mut pos, header.name.as_bytes())?;
-            write_bytes(dst, &mut pos, b": ")?;
-            write_bytes(dst, &mut pos, header.value)?;
-            write_bytes(dst, &mut pos, b"\r\n")?;
+            write(dst, &mut pos, header.name.as_bytes())?;
+            write(dst, &mut pos, b": ")?;
+            write(dst, &mut pos, header.value)?;
+            write(dst, &mut pos, b"\r\n")?;
         }
 
-        write_bytes(dst, &mut pos, b"\r\n")?;
+        write(dst, &mut pos, b"\r\n")?;
 
         Ok(pos)
     }
@@ -285,6 +253,18 @@ impl<'buf, const N: usize> Decoder<'buf> for InRequestCodec<N> {
             Status::Partial => Ok(None),
         }
     }
+}
+
+fn write(dst: &mut [u8], pos: &mut usize, data: &[u8]) -> Result<(), HttpEncodeError> {
+    if *pos + data.len() > dst.len() {
+        return Err(HttpEncodeError::BufferTooSmall);
+    }
+
+    dst[*pos..*pos + data.len()].copy_from_slice(data);
+
+    *pos += data.len();
+
+    Ok(())
 }
 
 #[cfg(test)]

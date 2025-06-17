@@ -53,8 +53,8 @@ impl<'a> Message<'a> {
         }
     }
 
-    /// Get the length of the WebSocket message.
-    pub const fn len(&self) -> usize {
+    /// Get the length of the message's payload in bytes.
+    pub(crate) const fn payload_len(&self) -> usize {
         match self {
             Message::Text(payload) => payload.len(),
             Message::Binary(payload) => payload.len(),
@@ -65,14 +65,8 @@ impl<'a> Message<'a> {
         }
     }
 
-    /// Returns true if the WebSocket message has no content.
-    /// For example, if the other side of the connection sent an empty string.
-    pub const fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     pub fn write(&self, dst: &mut [u8]) -> Option<usize> {
-        if dst.len() < self.len() {
+        if dst.len() < self.payload_len() {
             return None;
         }
 
@@ -99,7 +93,7 @@ impl<'a> Message<'a> {
             Message::Close(None) => {}
         }
 
-        Some(self.len())
+        Some(self.payload_len())
     }
 
     pub(crate) fn fragments(&self, fragment_size: usize) -> impl Iterator<Item = Frame<'a>> {

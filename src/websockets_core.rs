@@ -171,7 +171,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 value: b"upgrade",
             },
             Header {
-                name: "sec-webSocket-version",
+                name: "sec-websocket-version",
                 value: b"13",
             },
             Header {
@@ -296,7 +296,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 value: b"upgrade",
             },
             Header {
-                name: "sec-webSocket-version",
+                name: "sec-websocket-version",
                 value: b"13",
             },
             Header {

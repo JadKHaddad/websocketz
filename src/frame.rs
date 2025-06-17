@@ -105,7 +105,7 @@ impl Header {
         }
     }
 
-    /// writes the header into the dst buffer.
+    /// Writes the header into the dst buffer.
     pub fn write(&self, dst: &mut [u8]) -> Option<usize> {
         if dst.len() < 2 {
             return None;
