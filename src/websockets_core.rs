@@ -7,9 +7,12 @@ use rand::RngCore;
 use sha1::{Digest, Sha1};
 
 use crate::{
-    CloseCode, CloseFrame, FramesCodec, HeaderExt, Message, OpCode, Request, RequestCodec,
-    ResponseCodec,
+    CloseCode, CloseFrame, FramesCodec, Message, OpCode,
     error::{Error, HandshakeError, ReadError, WriteError},
+    http::{
+        HeaderExt, InRequestCodec, InResponseCodec, OutRequest, OutRequestCodec, OutResponse,
+        OutResponseCodec,
+    },
     next,
 };
 
@@ -177,11 +180,11 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             },
         ];
 
-        let request = Request::get(path, headers, additional_headers);
+        let request = OutRequest::get(path, headers, additional_headers);
 
         let (codec, inner, state) = self.framed.into_parts();
 
-        let mut framed = Framed::from_parts(RequestCodec::new(), inner, state.reset());
+        let mut framed = Framed::from_parts(OutRequestCodec::new(), inner, state.reset());
 
         framed
             .send(request)
@@ -190,7 +193,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let (_, inner, state) = framed.into_parts();
 
-        let mut framed = Framed::from_parts(ResponseCodec::<N>::new(), inner, state.reset());
+        let mut framed = Framed::from_parts(InResponseCodec::<N>::new(), inner, state.reset());
 
         match next!(framed) {
             None => {
@@ -239,45 +242,88 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         let framed = Framed::from_parts(codec, inner, state);
 
         Ok(Self {
-            fragmented: None,
+            fragmented: self.fragmented,
             fragments_buffer: self.fragments_buffer,
             framed,
         })
     }
 
-    pub async fn accept<const N: usize>(
+    pub async fn server_handshake<const N: usize>(
+        self,
         headers: &[Header<'_>],
-        // user-defined headers
-        accept_headers: &[Header<'_>],
-        inner: RW,
-        rng: Rng,
-        read_buffer: &'buf mut [u8],
-        write_buffer: &'buf mut [u8],
-        fragments_buffer: &'buf mut [u8],
     ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
     {
-        if !headers
-            .header_value_str("sec-websocket-version")
-            .is_some_and(|v| v.eq_ignore_ascii_case("13"))
-        {
-            return Err(Error::Handshake(HandshakeError::MissingOrInvalidSecVersion));
-        }
+        let additional_headers = headers;
 
-        let sec_key = headers
-            .header_value("sec-websocket-key")
-            .ok_or(Error::Handshake(HandshakeError::MissingSecKey))?;
+        let (codec, inner, state) = self.framed.into_parts();
 
-        let accept_key = Self::generate_sec_accept(sec_key).map_err(Error::Handshake)?;
+        let mut framed = Framed::from_parts(InRequestCodec::<N>::new(), inner, state);
 
-        // TODO: now we need an internal response and a codec that can send this response
-        // The user should be able to add additional headers to the response
-        // Make the internal response just like the request.
+        let accept_key = match next!(framed) {
+            None => {
+                return Err(Error::Handshake(HandshakeError::ConnectionClosed));
+            }
+            Some(Err(err)) => {
+                return Err(Error::Read(ReadError::ReadHttp(err)));
+            }
+            Some(Ok(request)) => {
+                if !request
+                    .headers()
+                    .header_value_str("sec-websocket-version")
+                    .is_some_and(|v| v.eq_ignore_ascii_case("13"))
+                {
+                    return Err(Error::Handshake(HandshakeError::MissingOrInvalidSecVersion));
+                }
 
-        // TODO: we also need a Headers struct that can read incoming Headers to be used with this accept method.
+                let sec_key = headers
+                    .header_value("sec-websocket-key")
+                    .ok_or(Error::Handshake(HandshakeError::MissingSecKey))?;
 
-        todo!()
+                Self::generate_sec_accept(sec_key).map_err(Error::Handshake)?
+            }
+        };
+
+        let headers = &[
+            Header {
+                name: "upgrade",
+                value: b"websocket",
+            },
+            Header {
+                name: "connection",
+                value: b"upgrade",
+            },
+            Header {
+                name: "sec-webSocket-version",
+                value: b"13",
+            },
+            Header {
+                name: "sec-websocket-accept",
+                value: &accept_key,
+            },
+        ];
+
+        let response = OutResponse::switching_protocols(headers, additional_headers);
+
+        let (_, inner, state) = framed.into_parts();
+
+        let mut framed = Framed::from_parts(OutResponseCodec::new(), inner, state);
+
+        framed
+            .send(response)
+            .await
+            .map_err(|err| Error::Write(WriteError::WriteHttp(err)))?;
+
+        let (_, inner, state) = framed.into_parts();
+
+        let framed = Framed::from_parts(codec, inner, state);
+
+        Ok(Self {
+            fragmented: self.fragmented,
+            fragments_buffer: self.fragments_buffer,
+            framed,
+        })
     }
 
     pub async fn maybe_next<'this>(

@@ -61,6 +61,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
 
     /// Creates a new [`Websockets`] server and performs the handshake.
     pub async fn accept<const N: usize>(
+        headers: &[Header<'_>],
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -71,7 +72,9 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        todo!()
+        Self::server(inner, rng, read_buffer, write_buffer, fragments_buffer)
+            .server_handshake::<N>(headers)
+            .await
     }
 
     /// Returns reference to the reader/writer.
@@ -109,6 +112,18 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     {
         Ok(Self {
             core: self.core.client_handshake::<N>(path, headers).await?,
+        })
+    }
+
+    async fn server_handshake<const N: usize>(
+        self,
+        headers: &[Header<'_>],
+    ) -> Result<Self, Error<RW::Error>>
+    where
+        RW: Read + Write,
+    {
+        Ok(Self {
+            core: self.core.server_handshake::<N>(headers).await?,
         })
     }
 

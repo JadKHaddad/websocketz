@@ -23,14 +23,102 @@ impl HeaderExt for [Header<'_>] {
 }
 
 #[derive(Debug)]
-pub struct Response<'buf, const N: usize> {
+pub struct OutResponse<'headers, 'buf> {
+    code: &'buf str,
+    status: &'buf str,
+    headers: &'headers [Header<'buf>],
+    additional_headers: &'headers [Header<'buf>],
+}
+
+impl<'headers, 'buf> OutResponse<'headers, 'buf> {
+    const fn new(
+        code: &'buf str,
+        status: &'buf str,
+        headers: &'headers [Header<'buf>],
+        additional_headers: &'headers [Header<'buf>],
+    ) -> Self {
+        OutResponse {
+            code,
+            status,
+            headers,
+            additional_headers,
+        }
+    }
+
+    pub const fn switching_protocols(
+        headers: &'headers [Header<'buf>],
+        additional_headers: &'headers [Header<'buf>],
+    ) -> Self {
+        Self::new("101", "Switching Protocols", headers, additional_headers)
+    }
+}
+
+#[derive(Debug)]
+pub struct OutResponseCodec {}
+
+impl OutResponseCodec {
+    pub const fn new() -> Self {
+        OutResponseCodec {}
+    }
+}
+
+impl Encoder<OutResponse<'_, '_>> for OutResponseCodec {
+    type Error = HttpEncodeError;
+
+    fn encode(&mut self, item: OutResponse<'_, '_>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        let mut pos = 0;
+
+        fn write_bytes(
+            dst: &mut [u8],
+            pos: &mut usize,
+            data: &[u8],
+        ) -> Result<(), HttpEncodeError> {
+            if *pos + data.len() > dst.len() {
+                return Err(HttpEncodeError::BufferTooSmall);
+            }
+
+            dst[*pos..*pos + data.len()].copy_from_slice(data);
+
+            *pos += data.len();
+
+            Ok(())
+        }
+
+        write_bytes(dst, &mut pos, b"HTTP/1.1 ")?;
+        write_bytes(dst, &mut pos, item.code.as_bytes())?;
+        write_bytes(dst, &mut pos, b" ")?;
+        write_bytes(dst, &mut pos, item.status.as_bytes())?;
+        write_bytes(dst, &mut pos, b"\r\n")?;
+
+        for header in item.headers.iter() {
+            write_bytes(dst, &mut pos, header.name.as_bytes())?;
+            write_bytes(dst, &mut pos, b": ")?;
+            write_bytes(dst, &mut pos, header.value)?;
+            write_bytes(dst, &mut pos, b"\r\n")?;
+        }
+
+        for header in item.additional_headers.iter() {
+            write_bytes(dst, &mut pos, header.name.as_bytes())?;
+            write_bytes(dst, &mut pos, b": ")?;
+            write_bytes(dst, &mut pos, header.value)?;
+            write_bytes(dst, &mut pos, b"\r\n")?;
+        }
+
+        write_bytes(dst, &mut pos, b"\r\n")?;
+
+        Ok(pos)
+    }
+}
+
+#[derive(Debug)]
+pub struct InResponse<'buf, const N: usize> {
     code: Option<u16>,
     headers: [Header<'buf>; N],
 }
 
-impl<'buf, const N: usize> Response<'buf, N> {
+impl<'buf, const N: usize> InResponse<'buf, N> {
     pub const fn new(code: Option<u16>, headers: [Header<'buf>; N]) -> Self {
-        Response { code, headers }
+        InResponse { code, headers }
     }
 
     pub const fn code(&self) -> Option<u16> {
@@ -43,48 +131,48 @@ impl<'buf, const N: usize> Response<'buf, N> {
 }
 
 #[derive(Debug)]
-pub struct ResponseCodec<const N: usize> {}
+pub struct InResponseCodec<const N: usize> {}
 
-impl<const N: usize> ResponseCodec<N> {
+impl<const N: usize> InResponseCodec<N> {
     pub const fn new() -> Self {
-        ResponseCodec {}
+        InResponseCodec {}
     }
 }
 
-impl<const N: usize> framez::decode::DecodeError for ResponseCodec<N> {
+impl<const N: usize> framez::decode::DecodeError for InResponseCodec<N> {
     type Error = HttpDecodeError;
 }
 
-impl<'buf, const N: usize> Decoder<'buf> for ResponseCodec<N> {
-    type Item = Response<'buf, N>;
+impl<'buf, const N: usize> Decoder<'buf> for InResponseCodec<N> {
+    type Item = InResponse<'buf, N>;
 
     fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
         let mut headers = [httparse::EMPTY_HEADER; N];
         let mut response = httparse::Response::new(&mut headers);
 
         match response.parse(src)? {
-            Status::Complete(len) => Ok(Some((Response::new(response.code, headers), len))),
+            Status::Complete(len) => Ok(Some((InResponse::new(response.code, headers), len))),
             Status::Partial => Ok(None),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct Request<'headers, 'buf> {
+pub struct OutRequest<'headers, 'buf> {
     method: &'buf str,
     path: &'buf str,
     headers: &'headers [Header<'buf>],
     additional_headers: &'headers [Header<'buf>],
 }
 
-impl<'headers, 'buf> Request<'headers, 'buf> {
+impl<'headers, 'buf> OutRequest<'headers, 'buf> {
     const fn new(
         method: &'buf str,
         path: &'buf str,
         headers: &'headers [Header<'buf>],
         additional_headers: &'headers [Header<'buf>],
     ) -> Self {
-        Request {
+        OutRequest {
             method,
             path,
             headers,
@@ -102,18 +190,18 @@ impl<'headers, 'buf> Request<'headers, 'buf> {
 }
 
 #[derive(Debug)]
-pub struct RequestCodec {}
+pub struct OutRequestCodec {}
 
-impl RequestCodec {
+impl OutRequestCodec {
     pub const fn new() -> Self {
-        RequestCodec {}
+        OutRequestCodec {}
     }
 }
 
-impl Encoder<Request<'_, '_>> for RequestCodec {
+impl Encoder<OutRequest<'_, '_>> for OutRequestCodec {
     type Error = HttpEncodeError;
 
-    fn encode(&mut self, item: Request<'_, '_>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+    fn encode(&mut self, item: OutRequest<'_, '_>, dst: &mut [u8]) -> Result<usize, Self::Error> {
         let mut pos = 0;
 
         fn write_bytes(
@@ -157,6 +245,48 @@ impl Encoder<Request<'_, '_>> for RequestCodec {
     }
 }
 
+#[derive(Debug)]
+pub struct InRequest<'buf, const N: usize> {
+    headers: [Header<'buf>; N],
+}
+
+impl<'buf, const N: usize> InRequest<'buf, N> {
+    pub const fn new(headers: [Header<'buf>; N]) -> Self {
+        InRequest { headers }
+    }
+
+    pub const fn headers(&self) -> &[Header<'buf>] {
+        &self.headers
+    }
+}
+
+#[derive(Debug)]
+pub struct InRequestCodec<const N: usize> {}
+
+impl<const N: usize> InRequestCodec<N> {
+    pub const fn new() -> Self {
+        InRequestCodec {}
+    }
+}
+
+impl<const N: usize> framez::decode::DecodeError for InRequestCodec<N> {
+    type Error = HttpDecodeError;
+}
+
+impl<'buf, const N: usize> Decoder<'buf> for InRequestCodec<N> {
+    type Item = InRequest<'buf, N>;
+
+    fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
+        let mut headers = [httparse::EMPTY_HEADER; N];
+        let mut request = httparse::Request::new(&mut headers);
+
+        match request.parse(src)? {
+            Status::Complete(len) => Ok(Some((InRequest::new(headers), len))),
+            Status::Partial => Ok(None),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,7 +310,7 @@ mod tests {
         #[test]
         fn ok() {
             let mut response = ok_response();
-            let mut codec = ResponseCodec::<2>::new();
+            let mut codec = InResponseCodec::<2>::new();
 
             let (response, len) = codec.decode(&mut response).unwrap().unwrap();
 
@@ -200,7 +330,7 @@ mod tests {
         #[test]
         fn too_many_headers() {
             let mut response = ok_response();
-            let mut codec = ResponseCodec::<1>::new();
+            let mut codec = InResponseCodec::<1>::new();
 
             let error = codec.decode(&mut response).unwrap_err();
 
@@ -213,7 +343,7 @@ mod tests {
         #[test]
         fn partial() {
             let mut response = partial_response();
-            let mut codec = ResponseCodec::<2>::new();
+            let mut codec = InResponseCodec::<2>::new();
 
             let result = codec.decode(&mut response).unwrap();
 
@@ -245,9 +375,9 @@ mod tests {
 
         #[test]
         fn ok() {
-            let request = Request::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+            let request = OutRequest::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
 
-            let mut codec = RequestCodec::new();
+            let mut codec = OutRequestCodec::new();
 
             let mut buf = std::vec![0; 1024];
 
@@ -259,9 +389,9 @@ mod tests {
 
         #[test]
         fn buffer_too_small() {
-            let request = Request::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+            let request = OutRequest::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
 
-            let mut codec = RequestCodec::new();
+            let mut codec = OutRequestCodec::new();
 
             let mut buf = std::vec![0; 10];
 
@@ -271,3 +401,5 @@ mod tests {
         }
     }
 }
+
+// TODO: add tests for `InRequestCodec` and `InResponseCodec` similar to the above tests
