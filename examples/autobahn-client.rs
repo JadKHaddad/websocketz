@@ -91,6 +91,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         loop {
             match next!(websocketz_read) {
+                None => {
+                    break;
+                }
                 Some(Ok(msg)) => {
                     match msg {
                         Message::Text(payload) => {
@@ -109,7 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Message::Close(None) => {
                             websocketz_write
-                                .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
+                                .send(Message::Close(Some(CloseFrame::no_reason(
+                                    CloseCode::Normal,
+                                ))))
                                 .await?;
 
                             break;
@@ -117,11 +122,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Message::Ping(payload) => {
                             websocketz_write.send(Message::Pong(payload)).await?;
                         }
-                        _ => {}
+                        Message::Pong(_) => {}
                     }
-                }
-                None => {
-                    break;
                 }
                 Some(Err(err)) => {
                     println!("Error reading message: {}", err);

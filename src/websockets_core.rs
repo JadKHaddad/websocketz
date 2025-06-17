@@ -277,7 +277,8 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                     return Err(Error::Handshake(HandshakeError::MissingOrInvalidSecVersion));
                 }
 
-                let sec_key = headers
+                let sec_key = request
+                    .headers()
                     .header_value("sec-websocket-key")
                     .ok_or(Error::Handshake(HandshakeError::MissingSecKey))?;
 

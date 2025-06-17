@@ -1,5 +1,5 @@
 {
-	"outdir": "./autobahn/server",
+	"outdir": "./autobahn/reports/server",
 	"servers": [
 		{
 			"agent": "websocketz",

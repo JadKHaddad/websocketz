@@ -11,6 +11,7 @@
         "fuzzingserver",
         "Haddad",
         "httparse",
+        "reportfile",
         "repr",
         "rngs",
         "rustdoc",

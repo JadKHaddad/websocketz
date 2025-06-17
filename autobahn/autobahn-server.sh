@@ -13,7 +13,7 @@ trap cleanup TERM EXIT
 
 function test_diff() {
     local expected="autobahn/expected-results.json"
-    local actual="autobahn/server/index.json"
+    local actual="autobahn/reports/server/index.json"
 
     local expected_filtered
     local actual_filtered
@@ -33,13 +33,15 @@ function test_diff() {
     rm -f "$expected_filtered" "$actual_filtered"
 }
 
+cargo build --release --example echo-server
 cargo run --release --example echo-server & WSSERVER_PID=$!
 sleep 3
 
 docker run --rm \
-    -v "${PWD}/autobahn:/autobahn" \
+    -v "${PWD}/autobahn/config:/autobahn/config" \
+    -v "${PWD}/autobahn/reports:/autobahn/reports" \
     --network host \
     crossbario/autobahn-testsuite \
-    wstest -m fuzzingclient -s 'autobahn/fuzzingclient.json'
+    wstest -m fuzzingclient -s 'autobahn/config/fuzzingclient.json'
 
 test_diff

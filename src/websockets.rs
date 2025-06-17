@@ -70,7 +70,6 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
-        Rng: RngCore,
     {
         Self::server(inner, rng, read_buffer, write_buffer, fragments_buffer)
             .server_handshake::<N>(headers)

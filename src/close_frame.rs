@@ -10,12 +10,16 @@ pub struct CloseFrame<'a> {
 
 impl<'a> CloseFrame<'a> {
     /// Creates a new [`CloseFrame`].
-    pub fn new(code: CloseCode, reason: &'a str) -> Self {
+    pub const fn new(code: CloseCode, reason: &'a str) -> Self {
         Self { code, reason }
     }
 
+    pub const fn no_reason(code: CloseCode) -> Self {
+        Self::new(code, "")
+    }
+
     /// Returns the close code.
-    pub fn code(&self) -> CloseCode {
+    pub const fn code(&self) -> CloseCode {
         self.code
     }
 
