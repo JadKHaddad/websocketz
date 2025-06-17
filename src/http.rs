@@ -276,110 +276,240 @@ mod tests {
 
         use super::*;
 
-        const OK_RESPONSE: &[u8] =
+        mod response {
+            use super::*;
+
+            const OK_RESPONSE: &[u8] =
             b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n\0\0\0\0\0\0";
 
-        fn ok_response() -> Vec<u8> {
-            OK_RESPONSE.to_vec()
+            fn ok_response() -> Vec<u8> {
+                OK_RESPONSE.to_vec()
+            }
+
+            fn partial_response() -> Vec<u8> {
+                OK_RESPONSE[..16].to_vec()
+            }
+
+            #[test]
+            fn ok() {
+                let mut response = ok_response();
+                let mut codec = InResponseCodec::<2>::new();
+
+                let (response, len) = codec.decode(&mut response).unwrap().unwrap();
+
+                assert_eq!(response.code(), Some(200));
+                assert_eq!(
+                    response.headers().header_value_str("content-type"),
+                    Some("text/plain")
+                );
+                assert_eq!(
+                    response.headers().header_value_str("Connection"),
+                    Some("close")
+                );
+                assert_eq!(response.headers().len(), 2);
+
+                assert_eq!(len, 64);
+            }
+
+            #[test]
+            fn too_many_headers() {
+                let mut response = ok_response();
+                let mut codec = InResponseCodec::<1>::new();
+
+                let error = codec.decode(&mut response).unwrap_err();
+
+                assert!(matches!(
+                    error,
+                    HttpDecodeError::Parse(httparse::Error::TooManyHeaders)
+                ));
+            }
+
+            #[test]
+            fn partial() {
+                let mut response = partial_response();
+                let mut codec = InResponseCodec::<2>::new();
+
+                let result = codec.decode(&mut response).unwrap();
+
+                assert!(result.is_none());
+            }
         }
 
-        fn partial_response() -> Vec<u8> {
-            OK_RESPONSE[..16].to_vec()
-        }
+        mod request {
+            use super::*;
 
-        #[test]
-        fn ok() {
-            let mut response = ok_response();
-            let mut codec = InResponseCodec::<2>::new();
+            const OK_REQUEST: &[u8] =
+            b"GET /index.html HTTP/1.1\r\nHost: example.com\r\nUser-Agent: test-agent\r\nAccept: text/html\r\n\r\n\0\0\0\0\0\0";
 
-            let (response, len) = codec.decode(&mut response).unwrap().unwrap();
+            fn ok_request() -> Vec<u8> {
+                OK_REQUEST.to_vec()
+            }
 
-            assert_eq!(response.code(), Some(200));
-            assert_eq!(
-                response.headers().header_value_str("content-type"),
-                Some("text/plain")
-            );
-            assert_eq!(
-                response.headers().header_value_str("Connection"),
-                Some("close")
-            );
+            fn partial_request() -> Vec<u8> {
+                OK_REQUEST[..16].to_vec()
+            }
 
-            assert_eq!(len, 64);
-        }
+            #[test]
+            fn ok() {
+                let mut request = ok_request();
+                let mut codec = InRequestCodec::<3>::new();
 
-        #[test]
-        fn too_many_headers() {
-            let mut response = ok_response();
-            let mut codec = InResponseCodec::<1>::new();
+                let (request, len) = codec.decode(&mut request).unwrap().unwrap();
 
-            let error = codec.decode(&mut response).unwrap_err();
+                assert_eq!(
+                    request.headers().header_value_str("Host"),
+                    Some("example.com")
+                );
+                assert_eq!(
+                    request.headers().header_value_str("User-agent"),
+                    Some("test-agent")
+                );
+                assert_eq!(
+                    request.headers().header_value_str("accept"),
+                    Some("text/html")
+                );
+                assert_eq!(len, 90);
 
-            assert!(matches!(
-                error,
-                HttpDecodeError::Parse(httparse::Error::TooManyHeaders)
-            ));
-        }
+                assert_eq!(request.headers().len(), 3);
+            }
 
-        #[test]
-        fn partial() {
-            let mut response = partial_response();
-            let mut codec = InResponseCodec::<2>::new();
+            #[test]
+            fn too_many_headers() {
+                let mut request = ok_request();
+                let mut codec = InRequestCodec::<2>::new();
 
-            let result = codec.decode(&mut response).unwrap();
+                let error = codec.decode(&mut request).unwrap_err();
 
-            assert!(result.is_none());
+                assert!(matches!(
+                    error,
+                    HttpDecodeError::Parse(httparse::Error::TooManyHeaders)
+                ));
+            }
+
+            #[test]
+            fn partial() {
+                let mut request = partial_request();
+                let mut codec = InRequestCodec::<3>::new();
+
+                let result = codec.decode(&mut request).unwrap();
+
+                assert!(result.is_none());
+            }
         }
     }
 
     mod encode {
         use super::*;
 
-        const OK_REQUEST: &[u8] =
+        mod request {
+            use super::*;
+
+            const OK_REQUEST: &[u8] =
             b"GET /index.html HTTP/1.1\r\nHost: example.com\r\nUser-Agent: test-agent\r\nAccept: text/html\r\n\r\n";
 
-        const HEADERS: &[Header] = &[
-            Header {
-                name: "Host",
-                value: b"example.com",
-            },
-            Header {
-                name: "User-Agent",
-                value: b"test-agent",
-            },
-        ];
+            const HEADERS: &[Header] = &[
+                Header {
+                    name: "Host",
+                    value: b"example.com",
+                },
+                Header {
+                    name: "User-Agent",
+                    value: b"test-agent",
+                },
+            ];
 
-        const ADDITIONAL_HEADERS: &[Header] = &[Header {
-            name: "Accept",
-            value: b"text/html",
-        }];
+            const ADDITIONAL_HEADERS: &[Header] = &[Header {
+                name: "Accept",
+                value: b"text/html",
+            }];
 
-        #[test]
-        fn ok() {
-            let request = OutRequest::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+            #[test]
+            fn ok() {
+                let request = OutRequest::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
 
-            let mut codec = OutRequestCodec::new();
+                let mut codec = OutRequestCodec::new();
 
-            let mut buf = std::vec![0; 1024];
+                let mut buf = std::vec![0; 1024];
 
-            let len = codec.encode(request, &mut buf).unwrap();
+                let len = codec.encode(request, &mut buf).unwrap();
 
-            assert!(len == OK_REQUEST.len());
-            assert_eq!(&buf[..len], OK_REQUEST);
+                assert!(len == OK_REQUEST.len());
+                assert_eq!(&buf[..len], OK_REQUEST);
+            }
+
+            #[test]
+            fn buffer_too_small() {
+                let request = OutRequest::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+
+                let mut codec = OutRequestCodec::new();
+
+                let mut buf = std::vec![0; 10];
+
+                let error = codec.encode(request, &mut buf).unwrap_err();
+
+                assert!(matches!(error, HttpEncodeError::BufferTooSmall));
+            }
         }
 
-        #[test]
-        fn buffer_too_small() {
-            let request = OutRequest::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+        mod response {
+            use super::*;
 
-            let mut codec = OutRequestCodec::new();
+            const OK_RESPONSE: &[u8] =
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n";
 
-            let mut buf = std::vec![0; 10];
+            const SWITCHING_PROTOCOLS_RESPONSE: &[u8] =
+                b"HTTP/1.1 101 Switching Protocols\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n";
 
-            let error = codec.encode(request, &mut buf).unwrap_err();
+            const HEADERS: &[Header] = &[Header {
+                name: "Content-Type",
+                value: b"text/plain",
+            }];
 
-            assert!(matches!(error, HttpEncodeError::BufferTooSmall));
+            const ADDITIONAL_HEADERS: &[Header] = &[Header {
+                name: "Connection",
+                value: b"close",
+            }];
+
+            #[test]
+            fn ok() {
+                let response = OutResponse::new("200", "OK", HEADERS, ADDITIONAL_HEADERS);
+
+                let mut codec = OutResponseCodec::new();
+
+                let mut buf = std::vec![0; 1024];
+
+                let len = codec.encode(response, &mut buf).unwrap();
+
+                assert!(len == OK_RESPONSE.len());
+                assert_eq!(&buf[..len], OK_RESPONSE);
+            }
+
+            #[test]
+            fn ok_switching_protocols() {
+                let response = OutResponse::switching_protocols(HEADERS, ADDITIONAL_HEADERS);
+
+                let mut codec = OutResponseCodec::new();
+
+                let mut buf = std::vec![0; 1024];
+
+                let len = codec.encode(response, &mut buf).unwrap();
+
+                assert!(len == SWITCHING_PROTOCOLS_RESPONSE.len());
+                assert_eq!(&buf[..len], SWITCHING_PROTOCOLS_RESPONSE);
+            }
+
+            #[test]
+            fn buffer_too_small() {
+                let response = OutResponse::new("200", "OK", HEADERS, ADDITIONAL_HEADERS);
+
+                let mut codec = OutResponseCodec::new();
+
+                let mut buf = std::vec![0; 10];
+
+                let error = codec.encode(response, &mut buf).unwrap_err();
+
+                assert!(matches!(error, HttpEncodeError::BufferTooSmall));
+            }
         }
     }
 }
-
-// TODO: add tests for `InRequestCodec` and `InResponseCodec` similar to the above tests
