@@ -7,7 +7,8 @@ use rand::RngCore;
 use sha1::{Digest, Sha1};
 
 use crate::{
-    CloseCode, CloseFrame, FramesCodec, Message, OpCode, Request, RequestCodec, ResponseCodec,
+    CloseCode, CloseFrame, FramesCodec, HeaderExt, Message, OpCode, Request, RequestCodec,
+    ResponseCodec,
     error::{Error, HandshakeError, ReadError, WriteError},
     next,
 };
@@ -141,6 +142,9 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         Ok(encoded)
     }
 
+    // TODO: we need a way to return the response so that the user can react to it.
+    // We can not return it directly, because it references the framed that read it.
+    // We may provide a callback that takes the response and returns an Option<Response>. I don not like this.
     pub async fn client_handshake<const N: usize>(
         mut self,
         path: &str,
@@ -156,19 +160,19 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let headers = &[
             Header {
-                name: "Upgrade",
+                name: "upgrade",
                 value: b"websocket",
             },
             Header {
-                name: "Connection",
-                value: b"Upgrade",
+                name: "connection",
+                value: b"upgrade",
             },
             Header {
-                name: "Sec-WebSocket-Version",
+                name: "sec-webSocket-version",
                 value: b"13",
             },
             Header {
-                name: "Sec-WebSocket-Key",
+                name: "sec-websocket-key",
                 value: &sec_key,
             },
         ];
@@ -203,26 +207,29 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 }
 
                 if !response
+                    .headers()
                     .header_value_str("upgrade")
                     .is_some_and(|v| v.eq_ignore_ascii_case("websocket"))
                 {
-                    return Err(Error::Handshake(HandshakeError::InvalidUpgradeHeader));
+                    return Err(Error::Handshake(HandshakeError::MissingOrInvalidUpgrade));
                 }
 
                 if !response
+                    .headers()
                     .header_value_str("connection")
                     .is_some_and(|v| v.eq_ignore_ascii_case("upgrade"))
                 {
-                    return Err(Error::Handshake(HandshakeError::InvalidConnectionHeader));
+                    return Err(Error::Handshake(HandshakeError::MissingOrInvalidConnection));
                 }
 
                 let sec_accept = Self::generate_sec_accept(&sec_key).map_err(Error::Handshake)?;
 
                 if response
+                    .headers()
                     .header_value("sec-websocket-accept")
                     .is_none_or(|v| v != sec_accept)
                 {
-                    return Err(Error::Handshake(HandshakeError::InvalidAcceptHeader));
+                    return Err(Error::Handshake(HandshakeError::MissingOrInvalidAccept));
                 }
             }
         }
@@ -238,11 +245,38 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         })
     }
 
-    pub async fn server_handshake<const N: usize>(mut self) -> Result<Self, Error<RW::Error>>
+    pub async fn accept<const N: usize>(
+        headers: &[Header<'_>],
+        // user-defined headers
+        accept_headers: &[Header<'_>],
+        inner: RW,
+        rng: Rng,
+        read_buffer: &'buf mut [u8],
+        write_buffer: &'buf mut [u8],
+        fragments_buffer: &'buf mut [u8],
+    ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
-        Rng: RngCore,
     {
+        if !headers
+            .header_value_str("sec-websocket-version")
+            .is_some_and(|v| v.eq_ignore_ascii_case("13"))
+        {
+            return Err(Error::Handshake(HandshakeError::MissingOrInvalidSecVersion));
+        }
+
+        let sec_key = headers
+            .header_value("sec-websocket-key")
+            .ok_or(Error::Handshake(HandshakeError::MissingSecKey))?;
+
+        let accept_key = Self::generate_sec_accept(sec_key).map_err(Error::Handshake)?;
+
+        // TODO: now we need an internal response and a codec that can send this response
+        // The user should be able to add additional headers to the response
+        // Make the internal response just like the request.
+
+        // TODO: we also need a Headers struct that can read incoming Headers to be used with this accept method.
+
         todo!()
     }
 

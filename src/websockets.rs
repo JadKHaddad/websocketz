@@ -71,9 +71,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        Self::server(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .server_handshake::<N>()
-            .await
+        todo!()
     }
 
     /// Returns reference to the reader/writer.
@@ -111,16 +109,6 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     {
         Ok(Self {
             core: self.core.client_handshake::<N>(path, headers).await?,
-        })
-    }
-
-    async fn server_handshake<const N: usize>(self) -> Result<Self, Error<RW::Error>>
-    where
-        RW: Read + Write,
-        Rng: RngCore,
-    {
-        Ok(Self {
-            core: self.core.server_handshake::<N>().await?,
         })
     }
 

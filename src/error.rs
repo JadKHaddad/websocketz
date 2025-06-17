@@ -87,12 +87,16 @@ pub enum HandshakeError {
     ConnectionClosed,
     #[error("Invalid status code: {code:?}")]
     InvalidStatusCode { code: Option<u16> },
-    #[error("Invalid upgrade header")]
-    InvalidUpgradeHeader,
-    #[error("Invalid connection header")]
-    InvalidConnectionHeader,
-    #[error("Invalid accept header")]
-    InvalidAcceptHeader,
+    #[error("Missing or invalid upgrade header")]
+    MissingOrInvalidUpgrade,
+    #[error("Missing or invalid connection header")]
+    MissingOrInvalidConnection,
+    #[error("Missing or invalid sec websocket accept header")]
+    MissingOrInvalidAccept,
+    #[error("Missing or invalid sec websocket version header")]
+    MissingOrInvalidSecVersion,
+    #[error("Missing sec websocket key header")]
+    MissingSecKey,
 }
 
 #[derive(Debug, thiserror::Error)]

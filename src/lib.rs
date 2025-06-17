@@ -20,7 +20,7 @@ mod frame;
 use frame::{Frame, FrameMut, Header};
 
 mod http;
-use http::{Request, RequestCodec, ResponseCodec};
+use http::{HeaderExt, Request, RequestCodec, ResponseCodec};
 
 mod mask;
 

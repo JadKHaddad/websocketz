@@ -3,6 +3,25 @@ use httparse::{Header, Status};
 
 use crate::error::{HttpDecodeError, HttpEncodeError};
 
+pub trait HeaderExt {
+    fn header(&self, name: &str) -> Option<&Header<'_>>;
+
+    fn header_value(&self, name: &str) -> Option<&'_ [u8]> {
+        self.header(name).map(|h| h.value)
+    }
+
+    fn header_value_str(&self, name: &str) -> Option<&'_ str> {
+        self.header_value(name)
+            .and_then(|v| core::str::from_utf8(v).ok())
+    }
+}
+
+impl HeaderExt for [Header<'_>] {
+    fn header(&self, name: &str) -> Option<&Header<'_>> {
+        self.iter().find(|h| h.name.eq_ignore_ascii_case(name))
+    }
+}
+
 #[derive(Debug)]
 pub struct Response<'buf, const N: usize> {
     code: Option<u16>,
@@ -18,19 +37,8 @@ impl<'buf, const N: usize> Response<'buf, N> {
         self.code
     }
 
-    pub fn header(&self, name: &str) -> Option<&Header<'buf>> {
-        self.headers
-            .iter()
-            .find(|h| h.name.eq_ignore_ascii_case(name))
-    }
-
-    pub fn header_value(&self, name: &str) -> Option<&'buf [u8]> {
-        self.header(name).map(|h| h.value)
-    }
-
-    pub fn header_value_str(&self, name: &str) -> Option<&'buf str> {
-        self.header_value(name)
-            .and_then(|v| core::str::from_utf8(v).ok())
+    pub const fn headers(&self) -> &[Header<'buf>] {
+        &self.headers
     }
 }
 
@@ -178,10 +186,13 @@ mod tests {
 
             assert_eq!(response.code(), Some(200));
             assert_eq!(
-                response.header_value_str("content-type"),
+                response.headers().header_value_str("content-type"),
                 Some("text/plain")
             );
-            assert_eq!(response.header_value_str("Connection"), Some("close"));
+            assert_eq!(
+                response.headers().header_value_str("Connection"),
+                Some("close")
+            );
 
             assert_eq!(len, 64);
         }
