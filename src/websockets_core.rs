@@ -7,8 +7,7 @@ use rand::RngCore;
 use sha1::{Digest, Sha1};
 
 use crate::{
-    CloseCode, CloseFrame, FramesCodec, Message, OpCode, Options, Request, RequestCodec,
-    ResponseCodec,
+    CloseCode, CloseFrame, FramesCodec, Message, OpCode, Request, RequestCodec, ResponseCodec,
     error::{Error, HandshakeError, ReadError, WriteError},
     next,
 };
@@ -144,12 +143,15 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
     pub async fn client_handshake<const N: usize>(
         mut self,
-        options: Options<'_, '_>,
+        path: &str,
+        headers: &[Header<'_>],
     ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
+        let additional_headers = headers;
+
         let sec_key = self.generate_sec_key()?;
 
         let headers = &[
@@ -171,7 +173,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             },
         ];
 
-        let request = Request::get(options.path, headers, options.headers);
+        let request = Request::get(path, headers, additional_headers);
 
         let (codec, inner, state) = self.framed.into_parts();
 
@@ -214,14 +216,12 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                     return Err(Error::Handshake(HandshakeError::InvalidConnectionHeader));
                 }
 
-                let sec_accept = response
+                let sec_accept = Self::generate_sec_accept(&sec_key).map_err(Error::Handshake)?;
+
+                if response
                     .header_value("sec-websocket-accept")
-                    .ok_or_else(|| Error::Handshake(HandshakeError::MissingAcceptHeader))?;
-
-                let expected_sec_accept =
-                    Self::generate_sec_accept(&sec_key).map_err(Error::Handshake)?;
-
-                if sec_accept != expected_sec_accept {
+                    .is_none_or(|v| v != sec_accept)
+                {
                     return Err(Error::Handshake(HandshakeError::InvalidAcceptHeader));
                 }
             }
@@ -238,10 +238,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         })
     }
 
-    pub async fn server_handshake<const N: usize>(
-        mut self,
-        options: Options<'_, '_>,
-    ) -> Result<Self, Error<RW::Error>>
+    pub async fn server_handshake<const N: usize>(mut self) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,

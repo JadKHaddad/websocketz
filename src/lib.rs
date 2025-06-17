@@ -35,9 +35,6 @@ mod next;
 mod opcode;
 use opcode::OpCode;
 
-mod options;
-pub use options::Options;
-
 mod websockets_core;
 use websockets_core::WebsocketsCore;
 

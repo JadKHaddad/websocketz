@@ -91,8 +91,6 @@ pub enum HandshakeError {
     InvalidUpgradeHeader,
     #[error("Invalid connection header")]
     InvalidConnectionHeader,
-    #[error("Missing accept header")]
-    MissingAcceptHeader,
     #[error("Invalid accept header")]
     InvalidAcceptHeader,
 }

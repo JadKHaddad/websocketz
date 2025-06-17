@@ -2,7 +2,7 @@ use embedded_io_adapters::tokio_1::FromTokio;
 use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpStream;
-use websocketz::{CloseCode, CloseFrame, Message, Options, Websockets, next};
+use websocketz::{CloseCode, CloseFrame, Message, Websockets, next};
 
 async fn connect<'buf>(
     path: &str,
@@ -12,21 +12,19 @@ async fn connect<'buf>(
 ) -> Result<Websockets<'buf, FromTokio<TcpStream>, StdRng>, Box<dyn std::error::Error>> {
     let stream = TcpStream::connect("localhost:9001").await?;
 
-    let options = Options::new(
-        path,
-        &[Header {
-            name: "Host",
-            value: b"localhost:9001",
-        }],
-    );
+    let headers = &[Header {
+        name: "Host",
+        value: b"localhost:9001",
+    }];
 
     let websocketz = Websockets::connect::<16>(
+        path,
+        headers,
         FromTokio::new(stream),
         StdRng::from_os_rng(),
         read_buf,
         write_buf,
         fragments_buf,
-        options,
     )
     .await?;
 

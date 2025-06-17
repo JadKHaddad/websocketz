@@ -3,9 +3,10 @@ use framez::{
     Framed,
     state::{ReadState, ReadWriteState, WriteState},
 };
+use httparse::Header;
 use rand::RngCore;
 
-use crate::{FramesCodec, Message, Options, WebsocketsCore, error::Error};
+use crate::{FramesCodec, Message, WebsocketsCore, error::Error};
 
 #[derive(Debug)]
 pub struct Websockets<'buf, RW, Rng> {
@@ -41,19 +42,20 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
 
     /// Creates a new [`Websockets`] client and performs the handshake.
     pub async fn connect<const N: usize>(
+        path: &str,
+        headers: &[Header<'_>],
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
-        options: Options<'_, '_>,
     ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
         Self::client(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .client_handshake::<N>(options)
+            .client_handshake::<N>(path, headers)
             .await
     }
 
@@ -64,14 +66,13 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         read_buffer: &'buf mut [u8],
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
-        options: Options<'_, '_>,
     ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
         Self::server(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .server_handshake::<N>(options)
+            .server_handshake::<N>()
             .await
     }
 
@@ -101,27 +102,25 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
 
     async fn client_handshake<const N: usize>(
         self,
-        options: Options<'_, '_>,
+        path: &str,
+        headers: &[Header<'_>],
     ) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
         Ok(Self {
-            core: self.core.client_handshake::<N>(options).await?,
+            core: self.core.client_handshake::<N>(path, headers).await?,
         })
     }
 
-    async fn server_handshake<const N: usize>(
-        self,
-        options: Options<'_, '_>,
-    ) -> Result<Self, Error<RW::Error>>
+    async fn server_handshake<const N: usize>(self) -> Result<Self, Error<RW::Error>>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
         Ok(Self {
-            core: self.core.server_handshake::<N>(options).await?,
+            core: self.core.server_handshake::<N>().await?,
         })
     }
 

@@ -1,7 +1,7 @@
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
 
-use crate::{CloseCode, Message, Options, Websockets, next};
+use crate::{CloseCode, Message, Websockets, next};
 
 const SIZE: usize = 128;
 
@@ -69,12 +69,13 @@ mod client {
 
         let client = async move {
             let mut websocketz = Websockets::connect::<16>(
+                "/",
+                &[],
                 FromTokio::new(client),
                 StdRng::from_os_rng(),
                 read_buf,
                 write_buf,
                 fragments_buf,
-                Options::new("/", &[]),
             )
             .await
             .unwrap();
