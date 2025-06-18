@@ -38,7 +38,7 @@ mod client {
     async fn handshake() {
         let (client, server) = tokio::io::duplex(16);
 
-        // Handshake requires a larger write buffer than SIZE
+        // Handshake requires larger buffers than SIZE
         let read_buf = &mut [0u8; SIZE * 2];
         let write_buf = &mut [0u8; SIZE * 2];
         let fragments_buf = &mut [];
@@ -283,12 +283,103 @@ mod client {
 }
 
 mod server {
+    use bytes::Bytes;
+    use http::{
+        Request,
+        header::{CONNECTION, UPGRADE},
+    };
+    use http_body_util::Empty;
+
+    use crate::CloseFrame;
+
     use super::*;
 
+    struct SpawnExecutor;
+
+    impl<Fut> hyper::rt::Executor<Fut> for SpawnExecutor
+    where
+        Fut: Future + Send + 'static,
+        Fut::Output: Send + 'static,
+    {
+        fn execute(&self, fut: Fut) {
+            tokio::task::spawn(fut);
+        }
+    }
+
     #[tokio::test]
-    #[ignore = "TODO"]
     async fn handshake() {
-        // TODO
+        let (server, client) = tokio::io::duplex(16);
+
+        // Handshake requires larger buffers than SIZE
+        let read_buf = &mut [0u8; SIZE * 2];
+        let write_buf = &mut [0u8; SIZE * 2];
+        let fragments_buf = &mut [];
+
+        let server = async move {
+            let mut websocketz = Websockets::accept::<16>(
+                &[],
+                FromTokio::new(server),
+                StdRng::from_os_rng(),
+                read_buf,
+                write_buf,
+                fragments_buf,
+            )
+            .await
+            .unwrap();
+
+            websocketz
+                .send(Message::Close(Some(CloseFrame::new(
+                    CloseCode::Normal,
+                    "close",
+                ))))
+                .await
+                .unwrap();
+
+            return websocketz.into_inner();
+        };
+
+        let client = async move {
+            let req = Request::builder()
+                .method("GET")
+                .uri("/")
+                .header(UPGRADE, "websocket")
+                .header(CONNECTION, "upgrade")
+                .header(
+                    "Sec-WebSocket-Key",
+                    fastwebsockets::handshake::generate_key(),
+                )
+                .header("Sec-WebSocket-Version", "13")
+                .body(Empty::<Bytes>::new())
+                .unwrap();
+
+            let (mut fastwebsockets, _) =
+                fastwebsockets::handshake::client(&SpawnExecutor, req, client)
+                    .await
+                    .unwrap();
+
+            loop {
+                match fastwebsockets.read_frame().await {
+                    Ok(frame) => match frame.opcode {
+                        fastwebsockets::OpCode::Close => {
+                            let payload: &[u8] = frame.payload.as_ref();
+                            let code = u16::from_be_bytes([payload[0], payload[1]]);
+                            let reason = core::str::from_utf8(&payload[2..]).unwrap();
+
+                            assert_eq!(code, 1000);
+                            assert_eq!(reason, "close");
+
+                            break;
+                        }
+                        _ => panic!("Unexpected frame opcode"),
+                    },
+                    Err(fastwebsockets::WebSocketError::UnexpectedEOF) => break,
+                    _ => panic!("Unexpected frame"),
+                }
+            }
+        };
+
+        // Keep io to prevent BrokenPipe error
+        let (_io, _) = tokio::join!(server, client);
     }
 
     #[tokio::test]
