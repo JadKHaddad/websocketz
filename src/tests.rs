@@ -335,7 +335,7 @@ mod server {
                 .await
                 .unwrap();
 
-            return websocketz.into_inner();
+            websocketz.into_inner()
         };
 
         let client = async move {
@@ -357,24 +357,20 @@ mod server {
                     .await
                     .unwrap();
 
-            loop {
-                match fastwebsockets.read_frame().await {
-                    Ok(frame) => match frame.opcode {
-                        fastwebsockets::OpCode::Close => {
-                            let payload: &[u8] = frame.payload.as_ref();
-                            let code = u16::from_be_bytes([payload[0], payload[1]]);
-                            let reason = core::str::from_utf8(&payload[2..]).unwrap();
+            match fastwebsockets.read_frame().await {
+                Ok(frame) => match frame.opcode {
+                    fastwebsockets::OpCode::Close => {
+                        let payload: &[u8] = frame.payload.as_ref();
+                        let code = u16::from_be_bytes([payload[0], payload[1]]);
+                        let reason = core::str::from_utf8(&payload[2..]).unwrap();
 
-                            assert_eq!(code, 1000);
-                            assert_eq!(reason, "close");
-
-                            break;
-                        }
-                        _ => panic!("Unexpected frame opcode"),
-                    },
-                    Err(fastwebsockets::WebSocketError::UnexpectedEOF) => break,
-                    _ => panic!("Unexpected frame"),
-                }
+                        assert_eq!(code, 1000);
+                        assert_eq!(reason, "close");
+                    }
+                    _ => panic!("Unexpected frame opcode"),
+                },
+                Err(fastwebsockets::WebSocketError::UnexpectedEOF) => {}
+                _ => panic!("Unexpected frame"),
             }
         };
 

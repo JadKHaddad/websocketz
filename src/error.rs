@@ -23,8 +23,14 @@ pub enum FrameEncodeError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum HttpDecodeError {
-    #[error(transparent)]
-    Parse(#[from] httparse::Error),
+    #[error("Parse error: {0}")]
+    Parse(httparse::Error),
+}
+
+impl From<httparse::Error> for HttpDecodeError {
+    fn from(err: httparse::Error) -> Self {
+        HttpDecodeError::Parse(err)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
