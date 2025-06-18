@@ -54,7 +54,9 @@ async fn get_case_count() -> Result<u32, Box<dyn std::error::Error>> {
     };
 
     websocketz
-        .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
+        .send(Message::Close(Some(CloseFrame::no_reason(
+            CloseCode::Normal,
+        ))))
         .await?;
 
     Ok(message)
@@ -148,7 +150,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     websocketz
-        .send(Message::Close(Some(CloseFrame::new(CloseCode::Normal, ""))))
+        .send(Message::Close(Some(CloseFrame::no_reason(
+            CloseCode::Normal,
+        ))))
         .await?;
 
     Ok(())
