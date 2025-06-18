@@ -19,31 +19,31 @@ pub enum Message<'a> {
 
 impl<'a> Message<'a> {
     /// Indicates whether a message is a text message.
-    pub fn is_text(&self) -> bool {
+    pub const fn is_text(&self) -> bool {
         matches!(*self, Message::Text(_))
     }
 
     /// Indicates whether a message is a binary message.
-    pub fn is_binary(&self) -> bool {
+    pub const fn is_binary(&self) -> bool {
         matches!(*self, Message::Binary(_))
     }
 
     /// Indicates whether a message is a ping message.
-    pub fn is_ping(&self) -> bool {
+    pub const fn is_ping(&self) -> bool {
         matches!(*self, Message::Ping(_))
     }
 
     /// Indicates whether a message is a pong message.
-    pub fn is_pong(&self) -> bool {
+    pub const fn is_pong(&self) -> bool {
         matches!(*self, Message::Pong(_))
     }
 
     /// Indicates whether a message is a close message.
-    pub fn is_close(&self) -> bool {
+    pub const fn is_close(&self) -> bool {
         matches!(*self, Message::Close(_))
     }
 
-    pub const fn opcode(&self) -> OpCode {
+    pub(crate) const fn opcode(&self) -> OpCode {
         match self {
             Message::Text(_) => OpCode::Text,
             Message::Binary(_) => OpCode::Binary,

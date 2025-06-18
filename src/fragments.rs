@@ -33,7 +33,7 @@ pub struct Iter<'a> {
 }
 
 impl<'a> Iter<'a> {
-    pub fn new(data: &'a [u8], opcode: OpCode, fragment_size: usize) -> Self {
+    pub const fn new(data: &'a [u8], opcode: OpCode, fragment_size: usize) -> Self {
         Self {
             data,
             opcode,

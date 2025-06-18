@@ -71,7 +71,7 @@ pub enum CloseCode {
 }
 
 impl CloseCode {
-    pub(crate) fn is_allowed(self) -> bool {
+    pub(crate) const fn is_allowed(self) -> bool {
         !matches!(
             self,
             CloseCode::Bad(_)

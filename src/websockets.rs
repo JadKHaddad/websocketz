@@ -15,7 +15,7 @@ pub struct Websockets<'buf, RW, Rng> {
 
 impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     /// Creates a new [`Websockets`] client after a successful handshake.
-    pub fn client(
+    pub const fn client(
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -28,7 +28,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     }
 
     /// Creates a new [`Websockets`] server after a successful handshake.
-    pub fn server(
+    pub const fn server(
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -84,7 +84,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
 
     /// Returns mutable reference to the reader/writer.
     #[inline]
-    pub fn inner_mut(&mut self) -> &mut RW {
+    pub const fn inner_mut(&mut self) -> &mut RW {
         self.core.inner_mut()
     }
 
@@ -238,7 +238,7 @@ impl<'buf, RW> WebsocketsRead<'buf, RW> {
     }
 
     /// Creates a new [`WebsocketsRead`] client after a successful handshake.
-    pub fn client(
+    pub const fn client(
         inner: RW,
         read_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
@@ -249,7 +249,7 @@ impl<'buf, RW> WebsocketsRead<'buf, RW> {
     }
 
     /// Creates a new [`WebsocketsRead`] server after a successful handshake.
-    pub fn server(
+    pub const fn server(
         inner: RW,
         read_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
@@ -267,7 +267,7 @@ impl<'buf, RW> WebsocketsRead<'buf, RW> {
 
     /// Returns mutable reference to the reader.
     #[inline]
-    pub fn inner_mut(&mut self) -> &mut RW {
+    pub const fn inner_mut(&mut self) -> &mut RW {
         self.core.inner_mut()
     }
 
@@ -306,14 +306,14 @@ impl<'buf, RW, Rng> WebsocketsWrite<'buf, RW, Rng> {
     }
 
     /// Creates a new [`WebsocketsWrite`] client after a successful handshake.
-    pub fn client(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
+    pub const fn client(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
             core: WebsocketsCore::client(inner, rng, &mut [], write_buffer, &mut []),
         }
     }
 
     /// Creates a new [`WebsocketsWrite`] server after a successful handshake.
-    pub fn server(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
+    pub const fn server(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
             core: WebsocketsCore::server(inner, rng, &mut [], write_buffer, &mut []),
         }
@@ -327,7 +327,7 @@ impl<'buf, RW, Rng> WebsocketsWrite<'buf, RW, Rng> {
 
     /// Returns mutable reference to the writer.
     #[inline]
-    pub fn inner_mut(&mut self) -> &mut RW {
+    pub const fn inner_mut(&mut self) -> &mut RW {
         self.core.inner_mut()
     }
 

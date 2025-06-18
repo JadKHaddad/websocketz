@@ -45,15 +45,15 @@ impl<R> FramesCodec<R> {
         }
     }
 
-    pub fn set_unmask(&mut self, unmask: bool) {
+    pub const fn set_unmask(&mut self, unmask: bool) {
         self.unmask = unmask;
     }
 
-    pub fn set_mask(&mut self, mask: bool) {
+    pub const fn set_mask(&mut self, mask: bool) {
         self.mask = mask;
     }
 
-    pub fn rng_mut(&mut self) -> &mut R {
+    pub const fn rng_mut(&mut self) -> &mut R {
         &mut self.rng
     }
 

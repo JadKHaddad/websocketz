@@ -49,8 +49,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         Self::from_framed(framed, None, fragments_buffer)
     }
 
-    // TODO: make this const. make Framed::new const. then make everything const.
-    fn new(
+    const fn new(
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -63,7 +62,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         )
     }
 
-    pub fn client(
+    pub const fn client(
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -75,7 +74,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             .with_unmask(false)
     }
 
-    pub fn server(
+    pub const fn server(
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -87,12 +86,12 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             .with_unmask(true)
     }
 
-    fn with_mask(mut self, mask: bool) -> Self {
+    const fn with_mask(mut self, mask: bool) -> Self {
         self.framed.codec_mut().set_mask(mask);
         self
     }
 
-    fn with_unmask(mut self, unmask: bool) -> Self {
+    const fn with_unmask(mut self, unmask: bool) -> Self {
         self.framed.codec_mut().set_unmask(unmask);
         self
     }
@@ -105,7 +104,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
     /// Returns mutable reference to the reader/writer.
     #[inline]
-    pub fn inner_mut(&mut self) -> &mut RW {
+    pub const fn inner_mut(&mut self) -> &mut RW {
         self.framed.inner_mut()
     }
 

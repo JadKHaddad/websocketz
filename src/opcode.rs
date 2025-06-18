@@ -12,7 +12,7 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    pub fn is_control(&self) -> bool {
+    pub const fn is_control(&self) -> bool {
         matches!(self, OpCode::Close | OpCode::Ping | OpCode::Pong)
     }
 }

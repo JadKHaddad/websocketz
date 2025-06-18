@@ -13,7 +13,7 @@ pub struct Frame<'a> {
 
 impl<'a> Frame<'a> {
     /// Creates a new [`Frame`].
-    pub fn new(fin: bool, opcode: OpCode, payload: &'a [u8]) -> Self {
+    pub const fn new(fin: bool, opcode: OpCode, payload: &'a [u8]) -> Self {
         Self {
             fin,
             opcode,
@@ -22,17 +22,17 @@ impl<'a> Frame<'a> {
     }
 
     /// Returns whether this is the final frame in a message.
-    pub fn is_final(&self) -> bool {
+    pub const fn is_final(&self) -> bool {
         self.fin
     }
 
     /// Returns the opcode of the frame.
-    pub fn opcode(&self) -> OpCode {
+    pub const fn opcode(&self) -> OpCode {
         self.opcode
     }
 
     /// Returns the payload of the frame.
-    pub fn payload(&self) -> &'a [u8] {
+    pub const fn payload(&self) -> &'a [u8] {
         self.payload
     }
 
@@ -62,7 +62,12 @@ pub struct FrameMut<'a> {
 
 impl<'a> FrameMut<'a> {
     /// Creates a new [`FrameMut`].
-    pub fn new(fin: bool, opcode: OpCode, mask: Option<[u8; 4]>, payload: &'a mut [u8]) -> Self {
+    pub const fn new(
+        fin: bool,
+        opcode: OpCode,
+        mask: Option<[u8; 4]>,
+        payload: &'a mut [u8],
+    ) -> Self {
         Self {
             fin,
             opcode,
@@ -97,7 +102,7 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn new(fin: bool, opcode: OpCode, payload_len: usize) -> Self {
+    pub const fn new(fin: bool, opcode: OpCode, payload_len: usize) -> Self {
         Self {
             fin,
             opcode,
