@@ -216,8 +216,8 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         );
 
         (
-            WebsocketsRead::from_framed(framed_read, self.core.fragments_buffer),
-            WebsocketsWrite::from_framed(framed_write),
+            WebsocketsRead::new_from_framed(framed_read, self.core.fragments_buffer),
+            WebsocketsWrite::new_from_framed(framed_write),
         )
     }
 }
@@ -228,12 +228,12 @@ pub struct WebsocketsRead<'buf, RW> {
 }
 
 impl<'buf, RW> WebsocketsRead<'buf, RW> {
-    fn from_framed(
+    const fn new_from_framed(
         framed: Framed<'buf, FramesCodec<()>, RW>,
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
         Self {
-            core: WebsocketsCore::from_framed(framed, fragments_buffer),
+            core: WebsocketsCore::new_from_framed(framed, fragments_buffer),
         }
     }
 
@@ -299,9 +299,9 @@ pub struct WebsocketsWrite<'buf, RW, Rng> {
 }
 
 impl<'buf, RW, Rng> WebsocketsWrite<'buf, RW, Rng> {
-    fn from_framed(framed: Framed<'buf, FramesCodec<Rng>, RW>) -> Self {
+    const fn new_from_framed(framed: Framed<'buf, FramesCodec<Rng>, RW>) -> Self {
         Self {
-            core: WebsocketsCore::from_framed(framed, &mut []),
+            core: WebsocketsCore::new_from_framed(framed, &mut []),
         }
     }
 

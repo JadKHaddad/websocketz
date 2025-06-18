@@ -30,6 +30,26 @@ pub struct WebsocketsCore<'buf, RW, Rng> {
 }
 
 impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
+    const fn from_framed(
+        framed: Framed<'buf, FramesCodec<Rng>, RW>,
+        fragmented: Option<Fragmented>,
+        fragments_buffer: &'buf mut [u8],
+    ) -> Self {
+        Self {
+            fragmented,
+            fragments_buffer,
+            framed,
+        }
+    }
+
+    pub const fn new_from_framed(
+        framed: Framed<'buf, FramesCodec<Rng>, RW>,
+        fragments_buffer: &'buf mut [u8],
+    ) -> Self {
+        Self::from_framed(framed, None, fragments_buffer)
+    }
+
+    // TODO: make this const. make Framed::new const. then make everything const.
     fn new(
         inner: RW,
         rng: Rng,
@@ -37,20 +57,10 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
-        let framed = Framed::new(FramesCodec::new(rng), inner, read_buffer, write_buffer);
-
-        Self::from_framed(framed, fragments_buffer)
-    }
-
-    pub fn from_framed(
-        framed: Framed<'buf, FramesCodec<Rng>, RW>,
-        fragments_buffer: &'buf mut [u8],
-    ) -> Self {
-        Self {
-            fragmented: None,
+        Self::new_from_framed(
+            Framed::new(FramesCodec::new(rng), inner, read_buffer, write_buffer),
             fragments_buffer,
-            framed,
-        }
+        )
     }
 
     pub fn client(
@@ -241,11 +251,11 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let framed = Framed::from_parts(codec, inner, state);
 
-        Ok(Self {
-            fragmented: self.fragmented,
-            fragments_buffer: self.fragments_buffer,
+        Ok(Self::from_framed(
             framed,
-        })
+            self.fragmented,
+            self.fragments_buffer,
+        ))
     }
 
     pub async fn server_handshake<const N: usize>(
@@ -320,11 +330,11 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let framed = Framed::from_parts(codec, inner, state);
 
-        Ok(Self {
-            fragmented: self.fragmented,
-            fragments_buffer: self.fragments_buffer,
+        Ok(Self::from_framed(
             framed,
-        })
+            self.fragmented,
+            self.fragments_buffer,
+        ))
     }
 
     pub async fn maybe_next<'this>(

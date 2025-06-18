@@ -36,7 +36,7 @@ pub struct FramesCodec<R = ()> {
 }
 
 impl<R> FramesCodec<R> {
-    pub fn new(rng: R) -> Self {
+    pub const fn new(rng: R) -> Self {
         Self {
             unmask: false,
             mask: false,
