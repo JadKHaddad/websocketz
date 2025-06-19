@@ -85,10 +85,6 @@ pub enum WriteError<I> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandshakeError {
-    #[error("Failed to generate sec websocket key: {0}")]
-    SecKeyGeneration(base64::EncodeSliceError),
-    #[error("Failed to generate sec websocket accept: {0}")]
-    SecAcceptGeneration(base64::EncodeSliceError),
     #[error("Connection closed during handshake")]
     ConnectionClosed,
     #[error("Missing or Invalid status code")]

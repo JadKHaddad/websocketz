@@ -34,10 +34,6 @@ const STR_MESSAGES: &[&str] = &[
 mod client {
     use super::*;
 
-    #[test]
-    #[ignore = "TODO"]
-    fn generate_sec_key() {}
-
     #[tokio::test]
     async fn handshake() {
         let (client, server) = tokio::io::duplex(16);
@@ -309,10 +305,6 @@ mod server {
             tokio::task::spawn(fut);
         }
     }
-
-    #[test]
-    #[ignore = "TODO"]
-    fn generate_sec_accept() {}
 
     #[tokio::test]
     async fn handshake() {

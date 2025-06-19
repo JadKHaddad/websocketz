@@ -120,22 +120,27 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         self.framed.framable()
     }
 
-    fn generate_sec_key(&mut self) -> Result<[u8; 24], base64::EncodeSliceError>
+    fn generate_sec_key(&mut self) -> [u8; 24]
     where
         Rng: RngCore,
     {
         let mut key: [u8; 16] = [0; 16];
 
+        debug_assert!(key.len() == 16, "Key should be 16 bytes long");
+
         self.framed.codec_mut().rng_mut().fill_bytes(&mut key);
 
+        // 24 = ((4 * key.len() + 2) / 3 + 3) & !3 = ((4 * 16 + 2) / 3 + 3) & !3
         let mut encoded: [u8; 24] = [0; 24];
 
-        general_purpose::STANDARD.encode_slice(key, &mut encoded)?;
+        general_purpose::STANDARD
+            .encode_slice(key, &mut encoded)
+            .expect("Bug: sec_key encoding failed");
 
-        Ok(encoded)
+        encoded
     }
 
-    fn generate_sec_accept(sec_key: &[u8]) -> Result<[u8; 28], base64::EncodeSliceError> {
+    fn generate_sec_accept(sec_key: &[u8]) -> [u8; 28] {
         let mut sha1 = Sha1::new();
 
         sha1.update(sec_key);
@@ -143,11 +148,16 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let hash = sha1.finalize();
 
+        debug_assert!(hash.len() == 20, "SHA1 hash should be 20 bytes long");
+
+        // 28 = ((4 * hash.len() + 2) / 3 + 3) & !3 = ((4 * 20 + 2) / 3 + 3) & !3
         let mut encoded: [u8; 28] = [0; 28];
 
-        general_purpose::STANDARD.encode_slice(hash, &mut encoded)?;
+        general_purpose::STANDARD
+            .encode_slice(hash, &mut encoded)
+            .expect("Bug: sec_accept encoding failed");
 
-        Ok(encoded)
+        encoded
     }
 
     // TODO: we need a way to return the response so that the user can react to it.
@@ -164,9 +174,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
     {
         let additional_headers = headers;
 
-        let sec_key = self
-            .generate_sec_key()
-            .map_err(HandshakeError::SecKeyGeneration)?;
+        let sec_key = self.generate_sec_key();
 
         let headers = &[
             Header {
@@ -230,8 +238,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                     return Err(Error::Handshake(HandshakeError::MissingOrInvalidConnection));
                 }
 
-                let sec_accept = Self::generate_sec_accept(&sec_key)
-                    .map_err(HandshakeError::SecAcceptGeneration)?;
+                let sec_accept = Self::generate_sec_accept(&sec_key);
 
                 if response
                     .headers()
@@ -288,7 +295,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                     .header_value("sec-websocket-key")
                     .ok_or(Error::Handshake(HandshakeError::MissingSecKey))?;
 
-                Self::generate_sec_accept(sec_key).map_err(HandshakeError::SecAcceptGeneration)?
+                Self::generate_sec_accept(sec_key)
             }
         };
 
