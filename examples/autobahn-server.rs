@@ -34,11 +34,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await?;
 
-            println!(
-                "Number of framable bytes after handshake: {}",
-                websocketz.framable()
-            );
-
             let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
 
             loop {
@@ -54,6 +49,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             websocketz_write.send(Message::Binary(payload)).await?;
                         }
                         Message::Close(Some(frame)) => {
+                            if frame.reason().len() >= 124 {
+                                break;
+                            }
+
                             websocketz_write.send(Message::Close(Some(frame))).await?;
 
                             break;

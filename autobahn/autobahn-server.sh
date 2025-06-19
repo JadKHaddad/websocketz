@@ -33,8 +33,8 @@ function test_diff() {
     rm -f "$expected_filtered" "$actual_filtered"
 }
 
-cargo build --release --example echo-server
-cargo run --release --example echo-server & WSSERVER_PID=$!
+cargo build --release --example autobahn-server
+cargo run --release --example autobahn-server & WSSERVER_PID=$!
 sleep 3
 
 docker run --rm \

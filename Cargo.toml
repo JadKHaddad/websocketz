@@ -52,3 +52,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 name = "autobahn-client"
 path = "examples/autobahn-client.rs"
 required-features = []
+
+[[example]]
+name = "autobahn-server"
+path = "examples/autobahn-server.rs"
+required-features = []
