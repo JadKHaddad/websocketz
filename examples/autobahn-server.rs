@@ -49,6 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             websocketz_write.send(Message::Binary(payload)).await?;
                         }
                         Message::Close(Some(frame)) => {
+                            // TODO: this must be moved to the codec and caught there. max close frame reason size
                             if frame.reason().len() >= 124 {
                                 break;
                             }
