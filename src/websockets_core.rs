@@ -213,9 +213,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
             }
             Some(Ok(response)) => {
                 if !matches!(response.code(), Some(101)) {
-                    return Err(Error::Handshake(HandshakeError::InvalidStatusCode {
-                        code: response.code(),
-                    }));
+                    return Err(Error::Handshake(HandshakeError::MissingOrInvalidStatusCode));
                 }
 
                 if !response
@@ -489,7 +487,10 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         RW: Write,
         Rng: RngCore,
     {
-        for frame in message.fragments(fragment_size) {
+        for frame in message
+            .fragments(fragment_size)
+            .map_err(Error::Fragmentation)?
+        {
             self.framed
                 .send(frame)
                 .await

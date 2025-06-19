@@ -1,4 +1,4 @@
-use crate::{CloseFrame, Frame, OpCode, fragments::FragmentsIterator};
+use crate::{CloseFrame, Frame, OpCode, error::FragmentationError, fragments::FragmentsIterator};
 
 #[derive(Debug)]
 pub enum Message<'a> {
@@ -65,7 +65,7 @@ impl<'a> Message<'a> {
         }
     }
 
-    pub fn write(&self, dst: &mut [u8]) -> Option<usize> {
+    pub(crate) fn write(&self, dst: &mut [u8]) -> Option<usize> {
         if dst.len() < self.payload_len() {
             return None;
         }
@@ -96,17 +96,27 @@ impl<'a> Message<'a> {
         Some(self.payload_len())
     }
 
-    pub(crate) fn fragments(&self, fragment_size: usize) -> impl Iterator<Item = Frame<'a>> {
-        assert!(fragment_size > 0, "fragment_size must be greater than 0");
+    /// See [`FragmentsIterator::new()`] for details on how to create the iterator.
+    pub(crate) fn fragments(
+        &self,
+        fragment_size: usize,
+    ) -> Result<impl Iterator<Item = Frame<'a>>, FragmentationError> {
+        if fragment_size < 1 {
+            return Err(FragmentationError::InvalidFragmentSize);
+        }
 
         match self {
-            Message::Text(payload) => {
-                FragmentsIterator::new(payload.as_bytes(), OpCode::Text, fragment_size)
-            }
-            Message::Binary(payload) => {
-                FragmentsIterator::new(payload, OpCode::Binary, fragment_size)
-            }
-            _ => panic!("Only Text and Binary messages can be fragmented"),
+            Message::Text(payload) => Ok(FragmentsIterator::new(
+                OpCode::Text,
+                payload.as_bytes(),
+                fragment_size,
+            )),
+            Message::Binary(payload) => Ok(FragmentsIterator::new(
+                OpCode::Binary,
+                payload,
+                fragment_size,
+            )),
+            _ => Err(FragmentationError::CanNotBeFragmented),
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::OpCode;
 
 /// A received frame.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Frame<'a> {
     /// Indicates if this is the final frame in a message.
     fin: bool,

@@ -89,10 +89,10 @@ pub enum HandshakeError {
     SecKeyGeneration(base64::EncodeSliceError),
     #[error("Failed to generate sec websocket accept: {0}")]
     SecAcceptGeneration(base64::EncodeSliceError),
-    #[error("Connection closed before handshake")]
+    #[error("Connection closed during handshake")]
     ConnectionClosed,
-    #[error("Invalid status code: {code:?}")]
-    InvalidStatusCode { code: Option<u16> },
+    #[error("Missing or Invalid status code")]
+    MissingOrInvalidStatusCode,
     #[error("Missing or invalid upgrade header")]
     MissingOrInvalidUpgrade,
     #[error("Missing or invalid connection header")]
@@ -106,11 +106,37 @@ pub enum HandshakeError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum FragmentationError {
+    #[error("Fragment size must be greater than 0")]
+    InvalidFragmentSize,
+    #[error("Only text and binary messages can be fragmented")]
+    CanNotBeFragmented,
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum Error<I> {
-    #[error(transparent)]
-    Read(#[from] ReadError<I>),
-    #[error(transparent)]
-    Write(#[from] WriteError<I>),
+    #[error("Read error: {0}")]
+    Read(
+        #[from]
+        #[source]
+        ReadError<I>,
+    ),
+    #[error("Write error: {0}")]
+    Write(
+        #[from]
+        #[source]
+        WriteError<I>,
+    ),
     #[error("Handshake error: {0}")]
-    Handshake(#[from] HandshakeError),
+    Handshake(
+        #[from]
+        #[source]
+        HandshakeError,
+    ),
+    #[error("Fragment error: {0}")]
+    Fragmentation(
+        #[from]
+        #[source]
+        FragmentationError,
+    ),
 }
