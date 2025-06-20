@@ -1,11 +1,38 @@
+//! Run with
+//!
+//! ```not_rust
+//! cargo run --example client-callback
+//! ```
+//!
+//! Run this example with the `server-callback` example.
+//!
+//! This example does not handle ping-pongs.
+
+use std::time::Duration;
+
 use embedded_io_adapters::tokio_1::FromTokio;
+use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
-use tokio::net::TcpStream;
+use tokio::{
+    io::{ReadHalf, WriteHalf},
+    net::TcpStream,
+};
 use websocketz::{Message, Response, Websockets, next};
 
 #[derive(Debug, thiserror::Error)]
 #[error("Oh no!")]
 struct CustomError {}
+
+fn split(
+    stream: FromTokio<TcpStream>,
+) -> (
+    FromTokio<ReadHalf<TcpStream>>,
+    FromTokio<WriteHalf<TcpStream>>,
+) {
+    let (read, write) = tokio::io::split(stream.into_inner());
+
+    (FromTokio::new(read), FromTokio::new(write))
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,39 +43,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fragments_buf = &mut [0u8; 8192];
     let rng = StdRng::from_os_rng();
 
-    let mut websocketz = Websockets::connect_with(
+    let (websocketz, custom) = Websockets::connect_with(
         "/",
-        &[],
+        // Additional request headers
+        &[Header {
+            name: "Client-Header",
+            value: b"Client-Value",
+        }],
         FromTokio::new(stream),
         rng,
         read_buf,
         write_buf,
         fragments_buf,
         |response: &Response<'_, 16>| {
-            // Fail the handshake if `Custom-Header: Custom-Value` header does not exist in the server response.
+            // Fail the handshake if `Server-Header: Server-Value` header does not exist in the server response.
 
             response
                 .headers()
                 .iter()
-                .find(|h| h.name.eq_ignore_ascii_case("Custom-Header"))
+                .find(|h| h.name.eq_ignore_ascii_case("Server-Header"))
                 .and_then(|h| core::str::from_utf8(h.value).ok())
-                .filter(|v| v.eq_ignore_ascii_case("Custom-Value"))
+                .filter(|v| v.eq_ignore_ascii_case("Server-Value"))
                 .map(|_| ())
-                .ok_or(CustomError {})
+                .ok_or(CustomError {})?;
+
+            // Create a custom value, depending on the response.
+            Ok::<&'static str, CustomError>("Ok!")
         },
     )
     .await?;
+
+    println!("Extracted: {custom}");
 
     println!(
         "Number of framable bytes after handshake: {}",
         websocketz.framable()
     );
 
-    websocketz.send(Message::Text("Hello, WebSocket!")).await?;
+    let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
 
-    while let Some(message) = next!(websocketz).transpose()? {
-        println!("Received message: {message:?}");
+    loop {
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                websocketz_write.send(Message::Text("Hi")).await?;
+
+            },
+            _ = async {
+                while let Some(message) = next!(websocketz_read).transpose()? {
+                    println!("Received message: {message:?}");
+                }
+
+                Ok::<(), Box<dyn std::error::Error>>(())
+            } => {}
+        }
     }
-
-    Ok(())
 }

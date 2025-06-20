@@ -1,4 +1,14 @@
+//! Run with
+//!
+//! ```not_rust
+//! cargo run --example server-callback
+//! ```
+//! Run this example with the `client-callback` example.
+//!
+//! This example does not handle ping-pongs.
+
 use embedded_io_adapters::tokio_1::FromTokio;
+use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::{TcpListener, TcpStream};
 use websocketz::{Message, Request, Websockets, next};
@@ -28,31 +38,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut write_buf = vec![0u8; SIZE];
             let mut fragments_buf = vec![0u8; SIZE];
 
-            let websocketz = Websockets::accept_with(
-                &[],
+            let (websocketz, custom) = Websockets::accept_with(
+                // Additional response headers
+                &[Header {
+                    name: "Server-Header",
+                    value: b"Server-Value",
+                }],
                 FromTokio::new(stream),
                 StdRng::from_os_rng(),
                 &mut read_buf,
                 &mut write_buf,
                 &mut fragments_buf,
                 |request: &Request<'_, 16>| {
-                    // Fail the handshake if `Custom-Header: Custom-Value` header does not exist in the client request.
+                    // Fail the handshake if `Client-Header: Client-Value` header does not exist in the client request.
 
                     request
                         .headers()
                         .iter()
-                        .find(|h| h.name.eq_ignore_ascii_case("Custom-Header"))
+                        .find(|h| h.name.eq_ignore_ascii_case("Client-Header"))
                         .and_then(|h| core::str::from_utf8(h.value).ok())
-                        .filter(|v| v.eq_ignore_ascii_case("Custom-Value"))
+                        .filter(|v| v.eq_ignore_ascii_case("Client-Value"))
                         .map(|_| ())
-                        .ok_or(CustomError {})
+                        .ok_or(CustomError {})?;
+
+                    // Create a custom value, depending on the request.
+                    Ok::<&'static str, CustomError>("Ok!")
                 },
             )
             .await?;
 
+            println!("Extracted: {custom}");
+
             let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
 
-            while let Some(_) = next!(websocketz_read).transpose()? {
+            websocketz_write.send(Message::Text("Hello Boomer")).await?;
+
+            while let Some(message) = next!(websocketz_read).transpose()? {
+                println!("Received message: {message:?}");
+
                 websocketz_write.send(Message::Text("Ok Boomer 👍")).await?
             }
 

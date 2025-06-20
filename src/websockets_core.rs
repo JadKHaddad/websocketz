@@ -160,14 +160,14 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         encoded
     }
 
-    pub async fn client_handshake<const N: usize, F, E>(
+    pub async fn client_handshake<const N: usize, F, T, E>(
         mut self,
         path: &str,
         headers: &[Header<'_>],
         on_response: F,
-    ) -> Result<Self, Error<RW::Error, E>>
+    ) -> Result<(Self, T), Error<RW::Error, E>>
     where
-        F: for<'a> Fn(&Response<'a, N>) -> Result<(), E>,
+        F: for<'a> Fn(&Response<'a, N>) -> Result<T, E>,
         RW: Read + Write,
         Rng: RngCore,
     {
@@ -209,7 +209,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let mut framed = Framed::from_parts(InResponseCodec::<N>::new(), inner, state.reset());
 
-        match next!(framed) {
+        let custom = match next!(framed) {
             None => {
                 return Err(Error::Handshake(HandshakeError::ConnectionClosed));
             }
@@ -217,7 +217,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 return Err(Error::Read(ReadError::ReadHttp(err)));
             }
             Some(Ok(response)) => {
-                on_response(&response).map_err(HandshakeError::Other)?;
+                let custom = on_response(&response).map_err(HandshakeError::Other)?;
 
                 if !matches!(response.code(), Some(101)) {
                     return Err(Error::Handshake(HandshakeError::MissingOrInvalidStatusCode));
@@ -248,27 +248,28 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 {
                     return Err(Error::Handshake(HandshakeError::MissingOrInvalidAccept));
                 }
+
+                custom
             }
-        }
+        };
 
         let (_, inner, state) = framed.into_parts();
 
         let framed = Framed::from_parts(codec, inner, state);
 
-        Ok(Self::from_framed(
-            framed,
-            self.fragmented,
-            self.fragments_buffer,
+        Ok((
+            Self::from_framed(framed, self.fragmented, self.fragments_buffer),
+            custom,
         ))
     }
 
-    pub async fn server_handshake<const N: usize, F, E>(
+    pub async fn server_handshake<const N: usize, F, T, E>(
         self,
         headers: &[Header<'_>],
         on_request: F,
-    ) -> Result<Self, Error<RW::Error, E>>
+    ) -> Result<(Self, T), Error<RW::Error, E>>
     where
-        F: for<'a> Fn(&Request<'a, N>) -> Result<(), E>,
+        F: for<'a> Fn(&Request<'a, N>) -> Result<T, E>,
         RW: Read + Write,
     {
         let additional_headers = headers;
@@ -277,7 +278,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let mut framed = Framed::from_parts(InRequestCodec::<N>::new(), inner, state);
 
-        let accept_key = match next!(framed) {
+        let (accept_key, custom) = match next!(framed) {
             None => {
                 return Err(Error::Handshake(HandshakeError::ConnectionClosed));
             }
@@ -285,7 +286,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 return Err(Error::Read(ReadError::ReadHttp(err)));
             }
             Some(Ok(request)) => {
-                on_request(&request).map_err(HandshakeError::Other)?;
+                let custom = on_request(&request).map_err(HandshakeError::Other)?;
 
                 if !request
                     .headers()
@@ -300,7 +301,7 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                     .header_value("sec-websocket-key")
                     .ok_or(Error::Handshake(HandshakeError::MissingSecKey))?;
 
-                Self::generate_sec_accept(sec_key)
+                (Self::generate_sec_accept(sec_key), custom)
             }
         };
 
@@ -338,10 +339,9 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
 
         let framed = Framed::from_parts(codec, inner, state);
 
-        Ok(Self::from_framed(
-            framed,
-            self.fragmented,
-            self.fragments_buffer,
+        Ok((
+            Self::from_framed(framed, self.fragmented, self.fragments_buffer),
+            custom,
         ))
     }
 

@@ -58,7 +58,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        Self::connect_with::<N, _, _>(
+        Ok(Self::connect_with::<N, _, _, _>(
             path,
             headers,
             inner,
@@ -68,10 +68,11 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
             fragments_buffer,
             |_| Ok(()),
         )
-        .await
+        .await?
+        .0)
     }
 
-    pub async fn connect_with<const N: usize, F, E>(
+    pub async fn connect_with<const N: usize, F, T, E>(
         path: &str,
         headers: &[Header<'_>],
         inner: RW,
@@ -80,14 +81,14 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
         on_response: F,
-    ) -> Result<Self, Error<RW::Error, E>>
+    ) -> Result<(Self, T), Error<RW::Error, E>>
     where
-        F: for<'a> Fn(&Response<'a, N>) -> Result<(), E>,
+        F: for<'a> Fn(&Response<'a, N>) -> Result<T, E>,
         RW: Read + Write,
         Rng: RngCore,
     {
         Self::client(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .client_handshake::<N, _, _>(path, headers, on_response)
+            .client_handshake::<N, _, _, _>(path, headers, on_response)
             .await
     }
 
@@ -103,7 +104,7 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     where
         RW: Read + Write,
     {
-        Self::accept_with::<N, _, _>(
+        Ok(Self::accept_with::<N, _, _, _>(
             headers,
             inner,
             rng,
@@ -112,10 +113,11 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
             fragments_buffer,
             |_| Ok(()),
         )
-        .await
+        .await?
+        .0)
     }
 
-    pub async fn accept_with<const N: usize, F, E>(
+    pub async fn accept_with<const N: usize, F, T, E>(
         headers: &[Header<'_>],
         inner: RW,
         rng: Rng,
@@ -123,13 +125,13 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
         on_request: F,
-    ) -> Result<Self, Error<RW::Error, E>>
+    ) -> Result<(Self, T), Error<RW::Error, E>>
     where
-        F: for<'a> Fn(&Request<'a, N>) -> Result<(), E>,
+        F: for<'a> Fn(&Request<'a, N>) -> Result<T, E>,
         RW: Read + Write,
     {
         Self::server(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .server_handshake::<N, _, _>(headers, on_request)
+            .server_handshake::<N, _, _, _>(headers, on_request)
             .await
     }
 
@@ -157,40 +159,40 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         self.core.framable()
     }
 
-    async fn client_handshake<const N: usize, F, E>(
+    async fn client_handshake<const N: usize, F, T, E>(
         self,
         path: &str,
         headers: &[Header<'_>],
         on_response: F,
-    ) -> Result<Self, Error<RW::Error, E>>
+    ) -> Result<(Self, T), Error<RW::Error, E>>
     where
-        F: for<'a> Fn(&Response<'a, N>) -> Result<(), E>,
+        F: for<'a> Fn(&Response<'a, N>) -> Result<T, E>,
         RW: Read + Write,
         Rng: RngCore,
     {
-        Ok(Self {
-            core: self
-                .core
-                .client_handshake::<N, _, _>(path, headers, on_response)
-                .await?,
-        })
+        let (core, custom) = self
+            .core
+            .client_handshake::<N, _, _, _>(path, headers, on_response)
+            .await?;
+
+        Ok((Self { core }, custom))
     }
 
-    async fn server_handshake<const N: usize, F, E>(
+    async fn server_handshake<const N: usize, F, T, E>(
         self,
         headers: &[Header<'_>],
         on_request: F,
-    ) -> Result<Self, Error<RW::Error, E>>
+    ) -> Result<(Self, T), Error<RW::Error, E>>
     where
-        F: for<'a> Fn(&Request<'a, N>) -> Result<(), E>,
+        F: for<'a> Fn(&Request<'a, N>) -> Result<T, E>,
         RW: Read + Write,
     {
-        Ok(Self {
-            core: self
-                .core
-                .server_handshake::<N, _, _>(headers, on_request)
-                .await?,
-        })
+        let (core, custom) = self
+            .core
+            .server_handshake::<N, _, _, _>(headers, on_request)
+            .await?;
+
+        Ok((Self { core }, custom))
     }
 
     /// Tries to read a message from the underlying reader.
