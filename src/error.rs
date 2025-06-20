@@ -11,8 +11,8 @@ pub enum FrameDecodeError {
     PayloadTooLarge,
     #[error("Control frame fragmented")]
     ControlFrameFragmented,
-    #[error("Ping frame too large")]
-    PingFrameTooLarge,
+    #[error("Control frame too large")]
+    ControlFrameTooLarge,
 }
 
 #[derive(Debug, thiserror::Error)]

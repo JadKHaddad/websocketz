@@ -157,8 +157,8 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
                         return Err(FrameDecodeError::ControlFrameFragmented);
                     }
 
-                    if matches!(opcode, OpCode::Ping) && payload_len > 125 {
-                        return Err(FrameDecodeError::PingFrameTooLarge);
+                    if opcode.is_control() && payload_len > 125 {
+                        return Err(FrameDecodeError::ControlFrameTooLarge);
                     }
 
                     let min_src_len = min_src_len + payload_len;
