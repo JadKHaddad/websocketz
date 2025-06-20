@@ -421,6 +421,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                                 OpCode::Binary => Some(Message::Binary(
                                     &self.fragments_buffer[..fragmented.index],
                                 )),
+                                // TODO: reason about this unreachable case
                                 _ => unreachable!(),
                             }
                         } else {

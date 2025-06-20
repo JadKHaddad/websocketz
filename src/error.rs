@@ -4,6 +4,12 @@ use crate::CloseCode;
 pub enum FrameDecodeError {
     #[error("Reserved bits must be zero")]
     ReservedBitsNotZero,
+    /// The server must close the connection when an unmasked frame is received.
+    #[error("Received an unmasked frame from client")]
+    UnmaskedFrameFromClient,
+    /// The client must close the connection when a masked frame is received.
+    #[error("Received a masked frame from server")]
+    MaskedFrameFromServer,
     #[error("Invalid opcode")]
     InvalidOpCode,
     // The payload length comes as an u64, converting it to usize might fail on 32-bit systems
@@ -13,14 +19,6 @@ pub enum FrameDecodeError {
     ControlFrameFragmented,
     #[error("Control frame too large")]
     ControlFrameTooLarge,
-
-    // TODO: handle these cases.
-    /// The server must close the connection when an unmasked frame is received.
-    #[error("Received an unmasked frame from client")]
-    UnmaskedFrameFromClient,
-    /// The client must close the connection when a masked frame is received.
-    #[error("Received a masked frame from server")]
-    MaskedFrameFromServer,
 }
 
 #[derive(Debug, thiserror::Error)]

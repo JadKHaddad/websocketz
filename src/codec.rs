@@ -57,6 +57,20 @@ impl<R> FramesCodec<R> {
         &mut self.rng
     }
 
+    /// Check if the codec is configured for a client.
+    ///
+    /// [`Self::mask`] and `NOT` [`Self::unmask`]
+    const fn is_client(&self) -> bool {
+        self.mask && !self.unmask
+    }
+
+    /// Check if the codec is configured a server.
+    ///
+    /// [`Self::unmask`] and `NOT` [`Self::mask`]
+    const fn is_server(&self) -> bool {
+        self.unmask && !self.mask
+    }
+
     pub fn split(self) -> (FramesCodec<()>, FramesCodec<R>) {
         (
             FramesCodec {
@@ -104,6 +118,14 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
                     let opcode = OpCode::try_from(src[0] & 0b00001111)?;
                     let masked = src[1] & 0b10000000 != 0;
 
+                    if self.is_server() && !masked {
+                        return Err(FrameDecodeError::UnmaskedFrameFromClient);
+                    }
+
+                    if self.is_client() && masked {
+                        return Err(FrameDecodeError::MaskedFrameFromServer);
+                    }
+
                     let length_code = src[1] & 0x7F;
                     let extra = match length_code {
                         126 => 2,
@@ -141,7 +163,7 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
                             src[2], src[3], src[4], src[5], src[6], src[7], src[8], src[9],
                         ]))
                         .map_err(|_| FrameDecodeError::PayloadTooLarge)?,
-                        _ => unreachable!(),
+                        _ => unreachable!("Extra must be 0, 2, or 8"),
                     };
 
                     let mask = masked.then(|| {
@@ -192,7 +214,7 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
 
                     let mut frame = FrameMut::new(fin, opcode, mask, payload);
 
-                    if self.unmask {
+                    if self.is_server() {
                         frame.unmask();
                     }
 
@@ -224,7 +246,7 @@ impl<R: RngCore> FramesCodec<R> {
             .write(&mut dst[..])
             .ok_or(FrameEncodeError::BufferTooSmall)?;
 
-        let mask: Option<[u8; 4]> = self.mask.then(|| self.rng.random());
+        let mask: Option<[u8; 4]> = self.is_client().then(|| self.rng.random());
 
         let head_len = match mask {
             None => head_len,
@@ -301,6 +323,18 @@ mod tests {
         }
 
         #[test]
+        #[ignore = "TODO"]
+        fn unmasked_frame_from_client() {
+            //TODO
+        }
+
+        #[test]
+        #[ignore = "TODO"]
+        fn masked_frame_from_server() {
+            //TODO
+        }
+
+        #[test]
         fn invalid_opcode() {
             let mut src = [0b00001111, 0b00000000];
 
@@ -326,7 +360,7 @@ mod tests {
 
         #[test]
         #[ignore = "TODO"]
-        fn ping_frame_too_large() {
+        fn control_frame_too_large() {
             //TODO
         }
     }
