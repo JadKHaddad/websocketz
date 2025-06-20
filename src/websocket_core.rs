@@ -23,13 +23,13 @@ pub struct Fragmented {
 }
 
 #[derive(Debug)]
-pub struct WebsocketsCore<'buf, RW, Rng> {
+pub struct WebSocketCore<'buf, RW, Rng> {
     pub fragmented: Option<Fragmented>,
     pub fragments_buffer: &'buf mut [u8],
     pub framed: Framed<'buf, FramesCodec<Rng>, RW>,
 }
 
-impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
+impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
     const fn from_framed(
         framed: Framed<'buf, FramesCodec<Rng>, RW>,
         fragmented: Option<Fragmented>,

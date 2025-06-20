@@ -11,7 +11,7 @@ use embedded_io_adapters::tokio_1::FromTokio;
 use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::{TcpListener, TcpStream};
-use websocketz::{Message, Request, Websockets, next};
+use websocketz::{Message, Request, WebSocket, next};
 
 #[derive(Debug, thiserror::Error)]
 #[error("Oh no!")]
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut write_buf = vec![0u8; SIZE];
             let mut fragments_buf = vec![0u8; SIZE];
 
-            let (websocketz, custom) = Websockets::accept_with(
+            let (websocketz, custom) = WebSocket::accept_with(
                 // Additional response headers
                 &[Header {
                     name: "Server-Header",

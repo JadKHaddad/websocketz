@@ -17,7 +17,7 @@ use tokio::{
     io::{ReadHalf, WriteHalf},
     net::TcpStream,
 };
-use websocketz::{Message, Response, Websockets, next};
+use websocketz::{Message, Response, WebSocket, next};
 
 #[derive(Debug, thiserror::Error)]
 #[error("Oh no!")]
@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fragments_buf = &mut [0u8; 8192];
     let rng = StdRng::from_os_rng();
 
-    let (websocketz, custom) = Websockets::connect_with(
+    let (websocketz, custom) = WebSocket::connect_with(
         "/",
         // Additional request headers
         &[Header {

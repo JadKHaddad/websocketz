@@ -1,7 +1,7 @@
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::{TcpListener, TcpStream};
-use websocketz::{CloseCode, CloseFrame, Message, Websockets, error::Error, next};
+use websocketz::{CloseCode, CloseFrame, Message, WebSocket, error::Error, next};
 
 const SIZE: usize = 24 * 1024 * 1024;
 
@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut write_buf = vec![0u8; SIZE];
             let mut fragments_buf = vec![0u8; SIZE];
 
-            let websocketz = Websockets::accept::<16>(
+            let websocketz = WebSocket::accept::<16>(
                 &[],
                 FromTokio::new(stream),
                 StdRng::from_os_rng(),

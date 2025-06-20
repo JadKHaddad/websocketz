@@ -1,4 +1,4 @@
-/// Calls [`Websockets::maybe_next`](crate::Websockets::maybe_next) in a loop until a message is returned or an error occurs.
+/// Calls [`WebSocket::maybe_next`](crate::WebSocket::maybe_next) in a loop until a message is returned or an error occurs.
 ///
 /// # Return value
 ///

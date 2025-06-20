@@ -1,7 +1,7 @@
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
 
-use crate::{CloseCode, Message, Websockets, next};
+use crate::{CloseCode, Message, WebSocket, next};
 
 const SIZE: usize = 128;
 
@@ -68,7 +68,7 @@ mod client {
         };
 
         let client = async move {
-            let mut websocketz = Websockets::connect::<16>(
+            let mut websocketz = WebSocket::connect::<16>(
                 "/",
                 &[],
                 FromTokio::new(client),
@@ -130,7 +130,7 @@ mod client {
         };
 
         let client = async move {
-            let mut websocketz = Websockets::client(
+            let mut websocketz = WebSocket::client(
                 FromTokio::new(client),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -193,7 +193,7 @@ mod client {
         };
 
         let client = async move {
-            let mut websocketz = Websockets::client(
+            let mut websocketz = WebSocket::client(
                 FromTokio::new(client),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -251,7 +251,7 @@ mod client {
         };
 
         let client = async move {
-            let mut websocketz = Websockets::client(
+            let mut websocketz = WebSocket::client(
                 FromTokio::new(client),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -316,7 +316,7 @@ mod server {
         let fragments_buf = &mut [];
 
         let server = async move {
-            let mut websocketz = Websockets::accept::<16>(
+            let mut websocketz = WebSocket::accept::<16>(
                 &[],
                 FromTokio::new(server),
                 StdRng::from_os_rng(),
@@ -387,7 +387,7 @@ mod server {
         let fragments_buf = &mut [0u8; SIZE];
 
         let server = async move {
-            let mut websocketz = Websockets::server(
+            let mut websocketz = WebSocket::server(
                 FromTokio::new(server),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -449,7 +449,7 @@ mod server {
         let fragments_buf = &mut [0u8; SIZE];
 
         let server = async move {
-            let mut websocketz = Websockets::server(
+            let mut websocketz = WebSocket::server(
                 FromTokio::new(server),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -535,7 +535,7 @@ mod server {
         };
 
         let server = async move {
-            let mut websocketz = Websockets::server(
+            let mut websocketz = WebSocket::server(
                 FromTokio::new(server),
                 StdRng::from_os_rng(),
                 read_buf,

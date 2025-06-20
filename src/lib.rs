@@ -35,11 +35,11 @@ mod next;
 mod opcode;
 use opcode::OpCode;
 
-mod websockets_core;
-use websockets_core::WebsocketsCore;
+mod websocket_core;
+use websocket_core::WebSocketCore;
 
-mod websockets;
-pub use websockets::{Websockets, WebsocketsRead, WebsocketsWrite};
+mod websocket;
+pub use websocket::{WebSocket, WebSocketRead, WebSocketWrite};
 
 #[cfg(test)]
 mod tests;
