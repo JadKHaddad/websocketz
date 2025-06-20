@@ -153,6 +153,8 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
                         ]
                     });
 
+                    // All control frames MUST have a payload length of 125 bytes or less
+                    // and MUST NOT be fragmented. (RFC 6455)
                     if opcode.is_control() && !fin {
                         return Err(FrameDecodeError::ControlFrameFragmented);
                     }

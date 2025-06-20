@@ -13,6 +13,14 @@ pub enum FrameDecodeError {
     ControlFrameFragmented,
     #[error("Control frame too large")]
     ControlFrameTooLarge,
+
+    // TODO: handle these cases.
+    /// The server must close the connection when an unmasked frame is received.
+    #[error("Received an unmasked frame from client")]
+    UnmaskedFrameFromClient,
+    /// The client must close the connection when a masked frame is received.
+    #[error("Received a masked frame from server")]
+    MaskedFrameFromServer,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -85,6 +93,14 @@ pub enum WriteError<I> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandshakeError {
+    // TODO: handle these cases.
+    /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
+    #[error("Unsupported HTTP method used - only GET is allowed")]
+    WrongHttpMethod,
+    /// Wrong HTTP version used (the WebSocket protocol requires version 1.1 or higher).
+    #[error("HTTP version must be 1.1 or higher")]
+    WrongHttpVersion,
+
     #[error("Connection closed during handshake")]
     ConnectionClosed,
     #[error("Missing or Invalid status code")]
