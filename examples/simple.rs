@@ -25,8 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         write_buf,
         fragments_buf,
     )
-    .await
-    .map_err(|_| "Handshake failed")?;
+    .await?;
 
     println!(
         "Number of framable bytes after handshake: {}",

@@ -6,7 +6,11 @@ use framez::{
 use httparse::Header;
 use rand::RngCore;
 
-use crate::{FramesCodec, Message, WebsocketsCore, error::Error};
+use crate::{
+    FramesCodec, Message, WebsocketsCore,
+    error::Error,
+    http::{Request, Response},
+};
 
 #[derive(Debug)]
 pub struct Websockets<'buf, RW, Rng> {
@@ -54,8 +58,36 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
+        Self::connect_with::<N, _, _>(
+            path,
+            headers,
+            inner,
+            rng,
+            read_buffer,
+            write_buffer,
+            fragments_buffer,
+            |_| Ok(()),
+        )
+        .await
+    }
+
+    pub async fn connect_with<const N: usize, F, E>(
+        path: &str,
+        headers: &[Header<'_>],
+        inner: RW,
+        rng: Rng,
+        read_buffer: &'buf mut [u8],
+        write_buffer: &'buf mut [u8],
+        fragments_buffer: &'buf mut [u8],
+        on_response: F,
+    ) -> Result<Self, Error<RW::Error, E>>
+    where
+        F: for<'a> Fn(&Response<'a, N>) -> Result<(), E>,
+        RW: Read + Write,
+        Rng: RngCore,
+    {
         Self::client(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .client_handshake::<N>(path, headers)
+            .client_handshake::<N, _, _>(path, headers, on_response)
             .await
     }
 
@@ -71,8 +103,33 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
     where
         RW: Read + Write,
     {
+        Self::accept_with::<N, _, _>(
+            headers,
+            inner,
+            rng,
+            read_buffer,
+            write_buffer,
+            fragments_buffer,
+            |_| Ok(()),
+        )
+        .await
+    }
+
+    pub async fn accept_with<const N: usize, F, E>(
+        headers: &[Header<'_>],
+        inner: RW,
+        rng: Rng,
+        read_buffer: &'buf mut [u8],
+        write_buffer: &'buf mut [u8],
+        fragments_buffer: &'buf mut [u8],
+        on_request: F,
+    ) -> Result<Self, Error<RW::Error, E>>
+    where
+        F: for<'a> Fn(&Request<'a, N>) -> Result<(), E>,
+        RW: Read + Write,
+    {
         Self::server(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .server_handshake::<N>(headers)
+            .server_handshake::<N, _, _>(headers, on_request)
             .await
     }
 
@@ -100,29 +157,39 @@ impl<'buf, RW, Rng> Websockets<'buf, RW, Rng> {
         self.core.framable()
     }
 
-    async fn client_handshake<const N: usize>(
+    async fn client_handshake<const N: usize, F, E>(
         self,
         path: &str,
         headers: &[Header<'_>],
-    ) -> Result<Self, Error<RW::Error>>
+        on_response: F,
+    ) -> Result<Self, Error<RW::Error, E>>
     where
+        F: for<'a> Fn(&Response<'a, N>) -> Result<(), E>,
         RW: Read + Write,
         Rng: RngCore,
     {
         Ok(Self {
-            core: self.core.client_handshake::<N>(path, headers).await?,
+            core: self
+                .core
+                .client_handshake::<N, _, _>(path, headers, on_response)
+                .await?,
         })
     }
 
-    async fn server_handshake<const N: usize>(
+    async fn server_handshake<const N: usize, F, E>(
         self,
         headers: &[Header<'_>],
-    ) -> Result<Self, Error<RW::Error>>
+        on_request: F,
+    ) -> Result<Self, Error<RW::Error, E>>
     where
+        F: for<'a> Fn(&Request<'a, N>) -> Result<(), E>,
         RW: Read + Write,
     {
         Ok(Self {
-            core: self.core.server_handshake::<N>(headers).await?,
+            core: self
+                .core
+                .server_handshake::<N, _, _>(headers, on_request)
+                .await?,
         })
     }
 

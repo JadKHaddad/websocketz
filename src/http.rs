@@ -95,14 +95,14 @@ impl Encoder<OutResponse<'_, '_>> for OutResponseCodec {
 }
 
 #[derive(Debug)]
-pub struct InResponse<'buf, const N: usize> {
+pub struct Response<'buf, const N: usize> {
     code: Option<u16>,
     headers: [Header<'buf>; N],
 }
 
-impl<'buf, const N: usize> InResponse<'buf, N> {
+impl<'buf, const N: usize> Response<'buf, N> {
     pub const fn new(code: Option<u16>, headers: [Header<'buf>; N]) -> Self {
-        InResponse { code, headers }
+        Response { code, headers }
     }
 
     pub const fn code(&self) -> Option<u16> {
@@ -128,14 +128,14 @@ impl<const N: usize> framez::decode::DecodeError for InResponseCodec<N> {
 }
 
 impl<'buf, const N: usize> Decoder<'buf> for InResponseCodec<N> {
-    type Item = InResponse<'buf, N>;
+    type Item = Response<'buf, N>;
 
     fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
         let mut headers = [httparse::EMPTY_HEADER; N];
         let mut response = httparse::Response::new(&mut headers);
 
         match response.parse(src)? {
-            Status::Complete(len) => Ok(Some((InResponse::new(response.code, headers), len))),
+            Status::Complete(len) => Ok(Some((Response::new(response.code, headers), len))),
             Status::Partial => Ok(None),
         }
     }
@@ -214,13 +214,13 @@ impl Encoder<OutRequest<'_, '_>> for OutRequestCodec {
 }
 
 #[derive(Debug)]
-pub struct InRequest<'buf, const N: usize> {
+pub struct Request<'buf, const N: usize> {
     headers: [Header<'buf>; N],
 }
 
-impl<'buf, const N: usize> InRequest<'buf, N> {
+impl<'buf, const N: usize> Request<'buf, N> {
     pub const fn new(headers: [Header<'buf>; N]) -> Self {
-        InRequest { headers }
+        Request { headers }
     }
 
     pub const fn headers(&self) -> &[Header<'buf>] {
@@ -242,14 +242,14 @@ impl<const N: usize> framez::decode::DecodeError for InRequestCodec<N> {
 }
 
 impl<'buf, const N: usize> Decoder<'buf> for InRequestCodec<N> {
-    type Item = InRequest<'buf, N>;
+    type Item = Request<'buf, N>;
 
     fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
         let mut headers = [httparse::EMPTY_HEADER; N];
         let mut request = httparse::Request::new(&mut headers);
 
         match request.parse(src)? {
-            Status::Complete(len) => Ok(Some((InRequest::new(headers), len))),
+            Status::Complete(len) => Ok(Some((Request::new(headers), len))),
             Status::Partial => Ok(None),
         }
     }

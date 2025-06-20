@@ -92,7 +92,11 @@ pub enum WriteError<I> {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum HandshakeError {
+#[error("NoError")]
+pub struct NoError {}
+
+#[derive(Debug, thiserror::Error)]
+pub enum HandshakeError<E = NoError> {
     // TODO: handle these cases.
     /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
     #[error("Unsupported HTTP method used - only GET is allowed")]
@@ -115,6 +119,8 @@ pub enum HandshakeError {
     MissingOrInvalidSecVersion,
     #[error("Missing sec websocket key header")]
     MissingSecKey,
+    #[error("Other: {0}")]
+    Other(E),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -126,7 +132,7 @@ pub enum FragmentationError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error<I> {
+pub enum Error<I, E = NoError> {
     #[error("Read error: {0}")]
     Read(
         #[from]
@@ -143,7 +149,7 @@ pub enum Error<I> {
     Handshake(
         #[from]
         #[source]
-        HandshakeError,
+        HandshakeError<E>,
     ),
     #[error("Fragment error: {0}")]
     Fragmentation(

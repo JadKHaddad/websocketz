@@ -11,7 +11,7 @@ use crate::{
     error::{Error, HandshakeError, ReadError, WriteError},
     http::{
         HeaderExt, InRequestCodec, InResponseCodec, OutRequest, OutRequestCodec, OutResponse,
-        OutResponseCodec,
+        OutResponseCodec, Request, Response,
     },
     next,
 };
@@ -160,15 +160,14 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         encoded
     }
 
-    // TODO: we need a way to return the response so that the user can react to it.
-    // We can not return it directly, because it references the framed that read it.
-    // We may provide a callback that takes the response and returns an Option<Response>. I don not like this.
-    pub async fn client_handshake<const N: usize>(
+    pub async fn client_handshake<const N: usize, F, E>(
         mut self,
         path: &str,
         headers: &[Header<'_>],
-    ) -> Result<Self, Error<RW::Error>>
+        on_response: F,
+    ) -> Result<Self, Error<RW::Error, E>>
     where
+        F: for<'a> Fn(&Response<'a, N>) -> Result<(), E>,
         RW: Read + Write,
         Rng: RngCore,
     {
@@ -218,6 +217,8 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 return Err(Error::Read(ReadError::ReadHttp(err)));
             }
             Some(Ok(response)) => {
+                on_response(&response).map_err(HandshakeError::Other)?;
+
                 if !matches!(response.code(), Some(101)) {
                     return Err(Error::Handshake(HandshakeError::MissingOrInvalidStatusCode));
                 }
@@ -261,11 +262,13 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
         ))
     }
 
-    pub async fn server_handshake<const N: usize>(
+    pub async fn server_handshake<const N: usize, F, E>(
         self,
         headers: &[Header<'_>],
-    ) -> Result<Self, Error<RW::Error>>
+        on_request: F,
+    ) -> Result<Self, Error<RW::Error, E>>
     where
+        F: for<'a> Fn(&Request<'a, N>) -> Result<(), E>,
         RW: Read + Write,
     {
         let additional_headers = headers;
@@ -282,6 +285,8 @@ impl<'buf, RW, Rng> WebsocketsCore<'buf, RW, Rng> {
                 return Err(Error::Read(ReadError::ReadHttp(err)));
             }
             Some(Ok(request)) => {
+                on_request(&request).map_err(HandshakeError::Other)?;
+
                 if !request
                     .headers()
                     .header_value_str("sec-websocket-version")

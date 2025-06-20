@@ -20,6 +20,7 @@ mod frame;
 use frame::{Frame, FrameMut, Header};
 
 mod http;
+pub use http::{Request, Response};
 
 mod mask;
 
