@@ -388,7 +388,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                                 return Some(Err(Error::Read(ReadError::InvalidUTF8)));
                             }
                         },
-                        _ => unreachable!(),
+                        _ => unreachable!("Already matched for OpCode::Text | OpCode::Binary"),
                     }
                 }
 
@@ -433,8 +433,9 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                                 OpCode::Binary => Some(Message::Binary(
                                     &self.fragments_buffer[..fragmented.index],
                                 )),
-                                // TODO: reason about this unreachable case
-                                _ => unreachable!(),
+                                _ => unreachable!(
+                                    "Opcode can only be set to OpCode::Text | OpCode::Binary in the first match branch"
+                                ),
                             }
                         } else {
                             None
