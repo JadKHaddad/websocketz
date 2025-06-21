@@ -14,6 +14,7 @@ use crate::{
         OutResponseCodec, Request, Response,
     },
     next,
+    options::{AcceptOptions, ConnectOptions},
 };
 
 #[derive(Debug)]
@@ -162,8 +163,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
     pub async fn client_handshake<const N: usize, F, T, E>(
         mut self,
-        path: &str,
-        headers: &[Header<'_>],
+        options: ConnectOptions<'_, '_>,
         on_response: F,
     ) -> Result<(Self, T), Error<RW::Error, E>>
     where
@@ -171,8 +171,6 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        let additional_headers = headers;
-
         let sec_key = self.generate_sec_key();
 
         let headers = &[
@@ -194,7 +192,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             },
         ];
 
-        let request = OutRequest::get(path, headers, additional_headers);
+        let request = OutRequest::get(options.path, headers, options.headers);
 
         let (codec, inner, state) = self.framed.into_parts();
 
@@ -265,15 +263,13 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
     pub async fn server_handshake<const N: usize, F, T, E>(
         self,
-        headers: &[Header<'_>],
+        options: AcceptOptions<'_, '_>,
         on_request: F,
     ) -> Result<(Self, T), Error<RW::Error, E>>
     where
         F: for<'a> Fn(&Request<'a, N>) -> Result<T, E>,
         RW: Read + Write,
     {
-        let additional_headers = headers;
-
         let (codec, inner, state) = self.framed.into_parts();
 
         let mut framed = Framed::from_parts(InRequestCodec::<N>::new(), inner, state);
@@ -336,7 +332,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             },
         ];
 
-        let response = OutResponse::switching_protocols(headers, additional_headers);
+        let response = OutResponse::switching_protocols(headers, options.headers);
 
         let (_, inner, state) = framed.into_parts();
 

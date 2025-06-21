@@ -17,7 +17,7 @@ use tokio::{
     io::{ReadHalf, WriteHalf},
     net::TcpStream,
 };
-use websocketz::{Message, Response, WebSocket, next};
+use websocketz::{Message, Response, WebSocket, next, options::ConnectOptions};
 
 #[derive(Debug, thiserror::Error)]
 #[error("Oh no!")]
@@ -44,12 +44,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rng = StdRng::from_os_rng();
 
     let (websocketz, custom) = WebSocket::connect_with(
-        "/",
-        // Additional request headers
-        &[Header {
-            name: "Client-Header",
-            value: b"Client-Value",
-        }],
+        ConnectOptions::new(
+            "/", // Additional request headers
+            &[Header {
+                name: "Client-Header",
+                value: b"Client-Value",
+            }],
+        ),
         FromTokio::new(stream),
         rng,
         read_buf,

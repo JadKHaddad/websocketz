@@ -1,7 +1,7 @@
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpStream;
-use websocketz::{Message, WebSocket, next};
+use websocketz::{Message, WebSocket, next, options::ConnectOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,8 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rng = StdRng::from_os_rng();
 
     let mut websocketz = WebSocket::connect::<16>(
-        "/",
-        &[],
+        ConnectOptions::new("/", &[]),
         FromTokio::new(stream),
         rng,
         read_buf,

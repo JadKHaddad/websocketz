@@ -3,13 +3,13 @@ use framez::{
     Framed,
     state::{ReadState, ReadWriteState, WriteState},
 };
-use httparse::Header;
 use rand::RngCore;
 
 use crate::{
     FramesCodec, Message, WebSocketCore,
     error::Error,
     http::{Request, Response},
+    options::{AcceptOptions, ConnectOptions},
 };
 
 #[derive(Debug)]
@@ -46,8 +46,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
 
     /// Creates a new [`WebSocket`] client and performs the handshake.
     pub async fn connect<const N: usize>(
-        path: &str,
-        headers: &[Header<'_>],
+        options: ConnectOptions<'_, '_>,
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -59,8 +58,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         Rng: RngCore,
     {
         Ok(Self::connect_with::<N, _, _, _>(
-            path,
-            headers,
+            options,
             inner,
             rng,
             read_buffer,
@@ -73,8 +71,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 
     pub async fn connect_with<const N: usize, F, T, E>(
-        path: &str,
-        headers: &[Header<'_>],
+        options: ConnectOptions<'_, '_>,
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -88,13 +85,13 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         Rng: RngCore,
     {
         Self::client(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .client_handshake::<N, _, _, _>(path, headers, on_response)
+            .client_handshake::<N, _, _, _>(options, on_response)
             .await
     }
 
     /// Creates a new [`WebSocket`] server and performs the handshake.
     pub async fn accept<const N: usize>(
-        headers: &[Header<'_>],
+        options: AcceptOptions<'_, '_>,
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -105,7 +102,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         RW: Read + Write,
     {
         Ok(Self::accept_with::<N, _, _, _>(
-            headers,
+            options,
             inner,
             rng,
             read_buffer,
@@ -118,7 +115,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 
     pub async fn accept_with<const N: usize, F, T, E>(
-        headers: &[Header<'_>],
+        options: AcceptOptions<'_, '_>,
         inner: RW,
         rng: Rng,
         read_buffer: &'buf mut [u8],
@@ -131,7 +128,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         RW: Read + Write,
     {
         Self::server(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .server_handshake::<N, _, _, _>(headers, on_request)
+            .server_handshake::<N, _, _, _>(options, on_request)
             .await
     }
 
@@ -161,8 +158,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
 
     async fn client_handshake<const N: usize, F, T, E>(
         self,
-        path: &str,
-        headers: &[Header<'_>],
+        options: ConnectOptions<'_, '_>,
         on_response: F,
     ) -> Result<(Self, T), Error<RW::Error, E>>
     where
@@ -172,7 +168,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     {
         let (core, custom) = self
             .core
-            .client_handshake::<N, _, _, _>(path, headers, on_response)
+            .client_handshake::<N, _, _, _>(options, on_response)
             .await?;
 
         Ok((Self { core }, custom))
@@ -180,7 +176,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
 
     async fn server_handshake<const N: usize, F, T, E>(
         self,
-        headers: &[Header<'_>],
+        options: AcceptOptions<'_, '_>,
         on_request: F,
     ) -> Result<(Self, T), Error<RW::Error, E>>
     where
@@ -189,7 +185,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     {
         let (core, custom) = self
             .core
-            .server_handshake::<N, _, _, _>(headers, on_request)
+            .server_handshake::<N, _, _, _>(options, on_request)
             .await?;
 
         Ok((Self { core }, custom))

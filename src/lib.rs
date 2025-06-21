@@ -3,6 +3,8 @@
 // #![deny(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+mod builder;
+
 mod close_code;
 pub use close_code::CloseCode;
 
@@ -34,6 +36,8 @@ mod next;
 
 mod opcode;
 use opcode::OpCode;
+
+pub mod options;
 
 mod websocket_core;
 use websocket_core::WebSocketCore;

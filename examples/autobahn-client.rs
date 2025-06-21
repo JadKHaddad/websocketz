@@ -2,7 +2,7 @@ use embedded_io_adapters::tokio_1::FromTokio;
 use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpStream;
-use websocketz::{CloseCode, CloseFrame, Message, WebSocket, next};
+use websocketz::{CloseCode, CloseFrame, Message, WebSocket, next, options::ConnectOptions};
 
 async fn connect<'buf>(
     path: &str,
@@ -18,8 +18,7 @@ async fn connect<'buf>(
     }];
 
     let websocketz = WebSocket::connect::<16>(
-        path,
-        headers,
+        ConnectOptions::new(path, headers),
         FromTokio::new(stream),
         StdRng::from_os_rng(),
         read_buf,

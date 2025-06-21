@@ -32,6 +32,8 @@ const STR_MESSAGES: &[&str] = &[
 // cSpell:enable
 
 mod client {
+    use crate::options::ConnectOptions;
+
     use super::*;
 
     #[tokio::test]
@@ -69,8 +71,7 @@ mod client {
 
         let client = async move {
             let mut websocketz = WebSocket::connect::<16>(
-                "/",
-                &[],
+                ConnectOptions::new("/", &[]),
                 FromTokio::new(client),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -296,6 +297,7 @@ mod server {
     use crate::{
         CloseFrame,
         error::{Error, HandshakeError},
+        options::AcceptOptions,
     };
 
     use super::*;
@@ -330,7 +332,7 @@ mod server {
 
         let server = async move {
             match WebSocket::accept::<16>(
-                &[],
+                AcceptOptions::new(&[]),
                 FromTokio::new(server),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -374,7 +376,7 @@ mod server {
 
         let server = async move {
             match WebSocket::accept::<16>(
-                &[],
+                AcceptOptions::new(&[]),
                 FromTokio::new(server),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -412,7 +414,7 @@ mod server {
 
         let server = async move {
             let mut websocketz = WebSocket::accept::<16>(
-                &[],
+                AcceptOptions::new(&[]),
                 FromTokio::new(server),
                 StdRng::from_os_rng(),
                 read_buf,
