@@ -283,14 +283,20 @@ mod client {
 }
 
 mod server {
+    use std::println;
+
     use bytes::Bytes;
     use http::{
         Request,
         header::{CONNECTION, UPGRADE},
     };
     use http_body_util::Empty;
+    use tokio::io::AsyncWriteExt;
 
-    use crate::CloseFrame;
+    use crate::{
+        CloseFrame,
+        error::{Error, HandshakeError},
+    };
 
     use super::*;
 
@@ -304,6 +310,95 @@ mod server {
         fn execute(&self, fut: Fut) {
             tokio::task::spawn(fut);
         }
+    }
+
+    #[tokio::test]
+    async fn wrong_http_method() {
+        const REQUEST: &str = "POST / HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Upgrade: websocket\r\n\
+            Connection: upgrade\r\n\
+            Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+            Sec-WebSocket-Version: 13\r\n\
+            \r\n";
+
+        let (server, mut client) = tokio::io::duplex(16);
+
+        let read_buf = &mut [0u8; SIZE * 2];
+        let write_buf = &mut [0u8; SIZE * 2];
+        let fragments_buf = &mut [];
+
+        let server = async move {
+            match WebSocket::accept::<16>(
+                &[],
+                FromTokio::new(server),
+                StdRng::from_os_rng(),
+                read_buf,
+                write_buf,
+                fragments_buf,
+            )
+            .await
+            {
+                Ok(_) => panic!("Expected error, but got Ok"),
+                Err(error) => {
+                    assert!(matches!(
+                        error,
+                        Error::Handshake(HandshakeError::WrongHttpMethod)
+                    ));
+                }
+            }
+        };
+
+        let client = async move {
+            client.write_all(REQUEST.as_bytes()).await.unwrap();
+        };
+
+        tokio::join!(server, client);
+    }
+
+    #[tokio::test]
+    async fn wrong_http_version() {
+        const REQUEST: &str = "GET / HTTP/1.0\r\n\
+            Host: localhost\r\n\
+            Upgrade: websocket\r\n\
+            Connection: upgrade\r\n\
+            Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+            Sec-WebSocket-Version: 13\r\n\
+            \r\n";
+
+        let (server, mut client) = tokio::io::duplex(16);
+
+        let read_buf = &mut [0u8; SIZE * 2];
+        let write_buf = &mut [0u8; SIZE * 2];
+        let fragments_buf = &mut [];
+
+        let server = async move {
+            match WebSocket::accept::<16>(
+                &[],
+                FromTokio::new(server),
+                StdRng::from_os_rng(),
+                read_buf,
+                write_buf,
+                fragments_buf,
+            )
+            .await
+            {
+                Ok(_) => panic!("Expected error, but got Ok"),
+                Err(error) => {
+                    println!("Error: {:?}", error);
+                    assert!(matches!(
+                        error,
+                        Error::Handshake(HandshakeError::WrongHttpVersion)
+                    ));
+                }
+            }
+        };
+
+        let client = async move {
+            client.write_all(REQUEST.as_bytes()).await.unwrap();
+        };
+
+        tokio::join!(server, client);
     }
 
     #[tokio::test]

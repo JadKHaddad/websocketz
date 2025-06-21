@@ -95,14 +95,12 @@ pub struct NoError {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandshakeError<E = NoError> {
-    // TODO: handle these cases.
     /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
     #[error("Unsupported HTTP method used - only GET is allowed")]
     WrongHttpMethod,
     /// Wrong HTTP version used (the WebSocket protocol requires version 1.1 or higher).
     #[error("HTTP version must be 1.1 or higher")]
     WrongHttpVersion,
-
     #[error("Connection closed during handshake")]
     ConnectionClosed,
     #[error("Missing or Invalid status code")]

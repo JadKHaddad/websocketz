@@ -288,6 +288,18 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             Some(Ok(request)) => {
                 let custom = on_request(&request).map_err(HandshakeError::Other)?;
 
+                if !matches!(request.method(), Some("GET")) {
+                    return Err(Error::Handshake(HandshakeError::WrongHttpMethod));
+                }
+
+                // http version must be 1.1 or higher
+                match request.version() {
+                    Some(version) if version >= 1 => {}
+                    _ => {
+                        return Err(Error::Handshake(HandshakeError::WrongHttpVersion));
+                    }
+                }
+
                 if !request
                     .headers()
                     .header_value_str("sec-websocket-version")

@@ -96,17 +96,43 @@ impl Encoder<OutResponse<'_, '_>> for OutResponseCodec {
 
 #[derive(Debug)]
 pub struct Response<'buf, const N: usize> {
-    code: Option<u16>,
-    headers: [Header<'buf>; N],
+    /// The response minor version, such as `1` for `HTTP/1.1`.
+    pub version: Option<u8>,
+    /// The response code, such as `200`.
+    pub code: Option<u16>,
+    /// The response reason-phrase, such as `OK`.
+    ///
+    /// Contains an empty string if the reason-phrase was missing or contained invalid characters.
+    pub reason: Option<&'buf str>,
+    /// The response headers.
+    pub headers: [Header<'buf>; N],
 }
 
 impl<'buf, const N: usize> Response<'buf, N> {
-    pub const fn new(code: Option<u16>, headers: [Header<'buf>; N]) -> Self {
-        Response { code, headers }
+    pub const fn new(
+        version: Option<u8>,
+        code: Option<u16>,
+        reason: Option<&'buf str>,
+        headers: [Header<'buf>; N],
+    ) -> Self {
+        Response {
+            version,
+            code,
+            reason,
+            headers,
+        }
+    }
+
+    pub const fn version(&self) -> Option<u8> {
+        self.version
     }
 
     pub const fn code(&self) -> Option<u16> {
         self.code
+    }
+
+    pub const fn reason(&self) -> Option<&'buf str> {
+        self.reason
     }
 
     pub const fn headers(&self) -> &[Header<'buf>] {
@@ -135,7 +161,10 @@ impl<'buf, const N: usize> Decoder<'buf> for InResponseCodec<N> {
         let mut response = httparse::Response::new(&mut headers);
 
         match response.parse(src)? {
-            Status::Complete(len) => Ok(Some((Response::new(response.code, headers), len))),
+            Status::Complete(len) => Ok(Some((
+                Response::new(response.version, response.code, response.reason, headers),
+                len,
+            ))),
             Status::Partial => Ok(None),
         }
     }
@@ -215,12 +244,41 @@ impl Encoder<OutRequest<'_, '_>> for OutRequestCodec {
 
 #[derive(Debug)]
 pub struct Request<'buf, const N: usize> {
-    headers: [Header<'buf>; N],
+    /// The request method, such as `GET`.
+    pub method: Option<&'buf str>,
+    /// The request path, such as `/about-us`.
+    pub path: Option<&'buf str>,
+    /// The request minor version, such as `1` for `HTTP/1.1`.
+    pub version: Option<u8>,
+    /// The request headers.
+    pub headers: [Header<'buf>; N],
 }
 
 impl<'buf, const N: usize> Request<'buf, N> {
-    pub const fn new(headers: [Header<'buf>; N]) -> Self {
-        Request { headers }
+    pub const fn new(
+        method: Option<&'buf str>,
+        path: Option<&'buf str>,
+        version: Option<u8>,
+        headers: [Header<'buf>; N],
+    ) -> Self {
+        Request {
+            method,
+            path,
+            version,
+            headers,
+        }
+    }
+
+    pub const fn method(&self) -> Option<&'buf str> {
+        self.method
+    }
+
+    pub const fn path(&self) -> Option<&'buf str> {
+        self.path
+    }
+
+    pub const fn version(&self) -> Option<u8> {
+        self.version
     }
 
     pub const fn headers(&self) -> &[Header<'buf>] {
@@ -249,7 +307,10 @@ impl<'buf, const N: usize> Decoder<'buf> for InRequestCodec<N> {
         let mut request = httparse::Request::new(&mut headers);
 
         match request.parse(src)? {
-            Status::Complete(len) => Ok(Some((Request::new(headers), len))),
+            Status::Complete(len) => Ok(Some((
+                Request::new(request.method, request.path, request.version, headers),
+                len,
+            ))),
             Status::Partial => Ok(None),
         }
     }
