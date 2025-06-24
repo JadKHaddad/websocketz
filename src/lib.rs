@@ -3,8 +3,6 @@
 // #![deny(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-mod builder;
-
 mod close_code;
 pub use close_code::CloseCode;
 

@@ -87,6 +87,20 @@ impl<R> FramesCodec<R> {
             },
         )
     }
+
+    #[cfg(test)]
+    const fn into_client(mut self) -> Self {
+        self.mask = true;
+        self.unmask = false;
+        self
+    }
+
+    #[cfg(test)]
+    const fn into_server(mut self) -> Self {
+        self.mask = false;
+        self.unmask = true;
+        self
+    }
 }
 
 impl<R> framez::decode::DecodeError for FramesCodec<R> {
@@ -309,9 +323,6 @@ mod tests {
         use super::*;
 
         #[test]
-        fn ok() {}
-
-        #[test]
         fn reserved_bits_not_zero() {
             let mut src = [0b11111111, 0b00000000];
 
@@ -323,15 +334,40 @@ mod tests {
         }
 
         #[test]
-        #[ignore = "TODO"]
         fn unmasked_frame_from_client() {
-            //TODO
+            const UNMASKED_FRAME: &[u8] = &[
+                0x81, // FIN=1, Text frame (opcode=0x1)
+                0x02, // MASK=0, Payload length=2
+                0x48, 0x69, // Payload: 'H', 'i'
+            ];
+
+            let src = &mut UNMASKED_FRAME.to_vec();
+
+            let mut codec = FramesCodec::new(()).into_server();
+
+            let error = codec.decode(src).unwrap_err();
+
+            assert!(matches!(error, FrameDecodeError::UnmaskedFrameFromClient));
         }
 
         #[test]
-        #[ignore = "TODO"]
         fn masked_frame_from_server() {
-            //TODO
+            #[rustfmt::skip]
+            const MASKED_FRAME: &[u8] = &[
+                0x81,             // FIN=1, opcode=0x1 (text)
+                0x82,             // MASK=1 (bit 7), payload length=2 (bits 0–6)
+                0x12, 0x34, 0x56, 0x78, // Masking key
+                0x48 ^ 0x12,      // 'H' (0x48) masked
+                0x69 ^ 0x34       // 'i' (0x69) masked
+            ];
+
+            let src = &mut MASKED_FRAME.to_vec();
+
+            let mut codec = FramesCodec::new(()).into_client();
+
+            let error = codec.decode(src).unwrap_err();
+
+            assert!(matches!(error, FrameDecodeError::MaskedFrameFromServer));
         }
 
         #[test]
@@ -353,29 +389,65 @@ mod tests {
         }
 
         #[test]
-        #[ignore = "TODO"]
         fn control_frame_fragmented() {
-            //TODO
+            const FRAGMENTED_CONTROL_FRAME: &[u8] = &[
+                0x09, // FIN=0 (fragmented), opcode=0x9 (Ping)
+                0x80, // MASK=1, payload length=0
+                0x00, 0x00, 0x00, 0x00, // Masking key (no payload, but key required)
+            ];
+
+            let src = &mut FRAGMENTED_CONTROL_FRAME.to_vec();
+
+            let mut codec = FramesCodec::new(());
+
+            let error = codec.decode(src).unwrap_err();
+
+            assert!(matches!(error, FrameDecodeError::ControlFrameFragmented));
         }
 
         #[test]
-        #[ignore = "TODO"]
         fn control_frame_too_large() {
-            //TODO
+            fn build_control_frame_too_large() -> std::vec::Vec<u8> {
+                let mut frame = std::vec![
+                    0x89, // FIN=1, opcode=0x9 (Ping)
+                    0xFE, // MASK=1, length=126
+                    0x00, 0x7E, // Extended payload length = 126
+                    0x12, 0x34, 0x56, 0x78, // Masking key
+                ];
+
+                let payload: std::vec::Vec<u8> = (0..126)
+                    .map(|i| b'A' ^ [0x12, 0x34, 0x56, 0x78][i % 4]) // masked 'A'
+                    .collect();
+
+                frame.extend(payload);
+                frame
+            }
+
+            let src = &mut build_control_frame_too_large();
+
+            let mut codec = FramesCodec::new(());
+
+            let error = codec.decode(src).unwrap_err();
+
+            assert!(matches!(error, FrameDecodeError::ControlFrameTooLarge));
         }
     }
 
     mod encode {
-        #[test]
-        #[ignore = "TODO"]
-        fn ok() {
-            //TODO
-        }
+        use rand::{SeedableRng, rngs::StdRng};
+
+        use super::*;
 
         #[test]
-        #[ignore = "TODO"]
         fn buffer_too_small() {
-            //TODO
+            let dst = &mut [0u8; 16];
+            let message = Message::Binary(&[0; 24]);
+
+            let mut codec = FramesCodec::new(StdRng::from_os_rng());
+
+            let error = codec.encode(message, dst).unwrap_err();
+
+            assert!(matches!(error, FrameEncodeError::BufferTooSmall));
         }
     }
 }

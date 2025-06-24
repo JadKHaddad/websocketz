@@ -70,9 +70,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
-        Self::new(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .with_mask(true)
-            .with_unmask(false)
+        Self::new(inner, rng, read_buffer, write_buffer, fragments_buffer).into_server()
     }
 
     pub const fn server(
@@ -82,18 +80,18 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         write_buffer: &'buf mut [u8],
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
-        Self::new(inner, rng, read_buffer, write_buffer, fragments_buffer)
-            .with_mask(false)
-            .with_unmask(true)
+        Self::new(inner, rng, read_buffer, write_buffer, fragments_buffer).into_client()
     }
 
-    const fn with_mask(mut self, mask: bool) -> Self {
-        self.framed.codec_mut().set_mask(mask);
+    const fn into_client(mut self) -> Self {
+        self.framed.codec_mut().set_mask(false);
+        self.framed.codec_mut().set_unmask(true);
         self
     }
 
-    const fn with_unmask(mut self, unmask: bool) -> Self {
-        self.framed.codec_mut().set_unmask(unmask);
+    const fn into_server(mut self) -> Self {
+        self.framed.codec_mut().set_mask(true);
+        self.framed.codec_mut().set_unmask(false);
         self
     }
 
