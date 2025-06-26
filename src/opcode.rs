@@ -12,22 +12,18 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    pub const fn is_control(&self) -> bool {
+    pub(crate) const fn is_control(&self) -> bool {
         matches!(self, OpCode::Close | OpCode::Ping | OpCode::Pong)
     }
-}
 
-impl TryFrom<u8> for OpCode {
-    type Error = FrameDecodeError;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            v if v == OpCode::Continuation as u8 => Ok(OpCode::Continuation),
-            v if v == OpCode::Text as u8 => Ok(OpCode::Text),
-            v if v == OpCode::Binary as u8 => Ok(OpCode::Binary),
-            v if v == OpCode::Close as u8 => Ok(OpCode::Close),
-            v if v == OpCode::Ping as u8 => Ok(OpCode::Ping),
-            v if v == OpCode::Pong as u8 => Ok(OpCode::Pong),
+    pub(crate) const fn try_from_u8(code: u8) -> Result<Self, FrameDecodeError> {
+        match code {
+            0x0 => Ok(OpCode::Continuation),
+            0x1 => Ok(OpCode::Text),
+            0x2 => Ok(OpCode::Binary),
+            0x8 => Ok(OpCode::Close),
+            0x9 => Ok(OpCode::Ping),
+            0xA => Ok(OpCode::Pong),
             _ => Err(FrameDecodeError::InvalidOpCode),
         }
     }

@@ -129,7 +129,7 @@ impl<'buf, R> Decoder<'buf> for FramesCodec<R> {
                         return Err(FrameDecodeError::ReservedBitsNotZero);
                     }
 
-                    let opcode = OpCode::try_from(src[0] & 0b00001111)?;
+                    let opcode = OpCode::try_from_u8(src[0] & 0b00001111)?;
                     let masked = src[1] & 0b10000000 != 0;
 
                     if self.is_server() && !masked {

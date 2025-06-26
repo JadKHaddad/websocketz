@@ -452,7 +452,8 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                         return Some(Err(Error::Read(ReadError::InvalidCloseFrame)));
                     }
                     _ => {
-                        let code = CloseCode::from(u16::from_be_bytes([payload[0], payload[1]]));
+                        let code =
+                            CloseCode::from_u16(u16::from_be_bytes([payload[0], payload[1]]));
 
                         if !code.is_allowed() {
                             return Some(Err(Error::Read(ReadError::InvalidCloseCode { code })));

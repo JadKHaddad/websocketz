@@ -84,7 +84,7 @@ impl<'a> Message<'a> {
                 dst[..payload.len()].copy_from_slice(payload);
             }
             Message::Close(Some(frame)) => {
-                let code: u16 = frame.code().into();
+                let code: u16 = frame.code().into_u16();
                 let code = code.to_be_bytes();
 
                 dst[0..2].copy_from_slice(&code);
