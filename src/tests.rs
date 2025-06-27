@@ -238,35 +238,6 @@ mod client {
 
         use super::*;
 
-        const RESPONSE_WITH_INVALID_STATUS_CODE: &str = "HTTP/1.1 200 OK\r\n\
-            Upgrade: websocket\r\n\
-            Connection: upgrade\r\n\
-            Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==\r\n\
-            \r\n";
-
-        const RESPONSE_WITH_INVALID_UPGRADE_HEADER: &str = "HTTP/1.1 101 Switching Protocols\r\n\
-            Upgrade: not-websocket\r\n\
-            Connection: upgrade\r\n\
-            Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==\r\n\
-            \r\n";
-
-        const RESPONSE_WITH_INVALID_CONNECTION_HEADER: &str = "HTTP/1.1 101 Switching Protocols\r\n\
-            Upgrade: websocket\r\n\
-            Connection: not-upgrade\r\n\
-            Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==\r\n\
-            \r\n";
-
-        const RESPONSE_WITH_MISSING_SEC_WEBSOCKET_ACCEPT_HEADER: &str = "HTTP/1.1 101 Switching Protocols\r\n\
-            Upgrade: websocket\r\n\
-            Connection: upgrade\r\n\
-            \r\n";
-
-        const RESPONSE_WITH_INVALID_SEC_WEBSOCKET_ACCEPT_HEADER: &str = "HTTP/1.1 101 Switching Protocols\r\n\
-            Upgrade: websocket\r\n\
-            Connection: upgrade\r\n\
-            Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==\r\n\
-            \r\n";
-
         macro_rules! quick_handshake_error {
             ($response:ident, $error:ident) => {
                 let (client, server) = tokio::io::duplex(16);
@@ -323,39 +294,56 @@ mod client {
 
         #[tokio::test]
         async fn invalid_status_code() {
-            quick_handshake_error!(RESPONSE_WITH_INVALID_STATUS_CODE, InvalidStatusCode);
+            const RESPONSE: &str = "HTTP/1.1 200 OK\r\n\
+            Upgrade: websocket\r\n\
+            Connection: upgrade\r\n\
+            Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+            \r\n";
+
+            quick_handshake_error!(RESPONSE, InvalidStatusCode);
         }
 
         #[tokio::test]
         async fn invalid_upgrade_header() {
-            quick_handshake_error!(
-                RESPONSE_WITH_INVALID_UPGRADE_HEADER,
-                MissingOrInvalidUpgrade
-            );
+            const RESPONSE: &str = "HTTP/1.1 101 Switching Protocols\r\n\
+            Upgrade: not-websocket\r\n\
+            Connection: upgrade\r\n\
+            Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+            \r\n";
+
+            quick_handshake_error!(RESPONSE, MissingOrInvalidUpgrade);
         }
 
         #[tokio::test]
         async fn invalid_connection_header() {
-            quick_handshake_error!(
-                RESPONSE_WITH_INVALID_CONNECTION_HEADER,
-                MissingOrInvalidConnection
-            );
+            const RESPONSE: &str = "HTTP/1.1 101 Switching Protocols\r\n\
+            Upgrade: websocket\r\n\
+            Connection: not-upgrade\r\n\
+            Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+            \r\n";
+
+            quick_handshake_error!(RESPONSE, MissingOrInvalidConnection);
         }
 
         #[tokio::test]
         async fn missing_accept_header() {
-            quick_handshake_error!(
-                RESPONSE_WITH_MISSING_SEC_WEBSOCKET_ACCEPT_HEADER,
-                MissingOrInvalidAccept
-            );
+            const RESPONSE: &str = "HTTP/1.1 101 Switching Protocols\r\n\
+            Upgrade: websocket\r\n\
+            Connection: upgrade\r\n\
+            \r\n";
+
+            quick_handshake_error!(RESPONSE, MissingOrInvalidAccept);
         }
 
         #[tokio::test]
         async fn invalid_accept_header() {
-            quick_handshake_error!(
-                RESPONSE_WITH_INVALID_SEC_WEBSOCKET_ACCEPT_HEADER,
-                MissingOrInvalidAccept
-            );
+            const RESPONSE: &str = "HTTP/1.1 101 Switching Protocols\r\n\
+            Upgrade: websocket\r\n\
+            Connection: upgrade\r\n\
+            Sec-WebSocket-Accept: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+            \r\n";
+
+            quick_handshake_error!(RESPONSE, MissingOrInvalidAccept);
         }
 
         #[tokio::test]
