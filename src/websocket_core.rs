@@ -216,7 +216,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                 let custom = on_response(&response).map_err(HandshakeError::Other)?;
 
                 if !matches!(response.code(), Some(101)) {
-                    return Err(Error::Handshake(HandshakeError::MissingOrInvalidStatusCode));
+                    return Err(Error::Handshake(HandshakeError::InvalidStatusCode));
                 }
 
                 if !response

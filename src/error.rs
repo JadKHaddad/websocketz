@@ -103,8 +103,8 @@ pub enum HandshakeError<E = NoError> {
     WrongHttpVersion,
     #[error("Connection closed during handshake")]
     ConnectionClosed,
-    #[error("Missing or Invalid status code")]
-    MissingOrInvalidStatusCode,
+    #[error("Invalid status code")]
+    InvalidStatusCode,
     #[error("Missing or invalid upgrade header")]
     MissingOrInvalidUpgrade,
     #[error("Missing or invalid connection header")]
