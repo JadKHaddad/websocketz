@@ -916,7 +916,7 @@ mod fragmentation {
         );
 
         match websocketz.send_fragmented(Message::Ping(b"ping"), 16).await {
-            Ok(_) => panic!("Expected InvalidFragmentation error, but got Ok"),
+            Ok(_) => panic!("Expected CanNotBeFragmented error, but got Ok"),
             Err(error) => {
                 assert!(matches!(
                     error,
@@ -926,7 +926,7 @@ mod fragmentation {
         }
 
         match websocketz.send_fragmented(Message::Pong(b"pong"), 16).await {
-            Ok(_) => panic!("Expected InvalidFragmentation error, but got Ok"),
+            Ok(_) => panic!("Expected CanNotBeFragmented error, but got Ok"),
             Err(error) => {
                 assert!(matches!(
                     error,
@@ -942,7 +942,7 @@ mod fragmentation {
             )
             .await
         {
-            Ok(_) => panic!("Expected InvalidFragmentation error, but got Ok"),
+            Ok(_) => panic!("Expected CanNotBeFragmented error, but got Ok"),
             Err(error) => {
                 assert!(matches!(
                     error,
