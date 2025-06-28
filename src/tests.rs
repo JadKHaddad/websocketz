@@ -459,8 +459,6 @@ mod client {
 }
 
 mod server {
-    use std::println;
-
     use bytes::Bytes;
     use http::{
         Request,
@@ -679,6 +677,40 @@ mod server {
     mod handshake {
         use super::*;
 
+        macro_rules! quick_handshake_error {
+            ($request:ident, $error:ident) => {
+                let (server, mut client) = tokio::io::duplex(16);
+
+                let read_buf = &mut [0u8; SIZE * 2];
+                let write_buf = &mut [0u8; SIZE * 2];
+                let fragments_buf = &mut [];
+
+                let server = async move {
+                    match WebSocket::accept::<16>(
+                        AcceptOptions::new(&[]),
+                        FromTokio::new(server),
+                        StdRng::from_os_rng(),
+                        read_buf,
+                        write_buf,
+                        fragments_buf,
+                    )
+                    .await
+                    {
+                        Ok(_) => panic!("Expected error, but got Ok"),
+                        Err(error) => {
+                            assert!(matches!(error, Error::Handshake(HandshakeError::$error)));
+                        }
+                    }
+                };
+
+                let client = async move {
+                    client.write_all($request.as_bytes()).await.unwrap();
+                };
+
+                tokio::join!(server, client);
+            };
+        }
+
         #[tokio::test]
         async fn wrong_http_method() {
             const REQUEST: &str = "POST / HTTP/1.1\r\n\
@@ -689,38 +721,7 @@ mod server {
             Sec-WebSocket-Version: 13\r\n\
             \r\n";
 
-            let (server, mut client) = tokio::io::duplex(16);
-
-            let read_buf = &mut [0u8; SIZE * 2];
-            let write_buf = &mut [0u8; SIZE * 2];
-            let fragments_buf = &mut [];
-
-            let server = async move {
-                match WebSocket::accept::<16>(
-                    AcceptOptions::new(&[]),
-                    FromTokio::new(server),
-                    StdRng::from_os_rng(),
-                    read_buf,
-                    write_buf,
-                    fragments_buf,
-                )
-                .await
-                {
-                    Ok(_) => panic!("Expected error, but got Ok"),
-                    Err(error) => {
-                        assert!(matches!(
-                            error,
-                            Error::Handshake(HandshakeError::WrongHttpMethod)
-                        ));
-                    }
-                }
-            };
-
-            let client = async move {
-                client.write_all(REQUEST.as_bytes()).await.unwrap();
-            };
-
-            tokio::join!(server, client);
+            quick_handshake_error!(REQUEST, WrongHttpMethod);
         }
 
         #[tokio::test]
@@ -733,39 +734,32 @@ mod server {
             Sec-WebSocket-Version: 13\r\n\
             \r\n";
 
-            let (server, mut client) = tokio::io::duplex(16);
+            quick_handshake_error!(REQUEST, WrongHttpVersion);
+        }
 
-            let read_buf = &mut [0u8; SIZE * 2];
-            let write_buf = &mut [0u8; SIZE * 2];
-            let fragments_buf = &mut [];
+        #[tokio::test]
+        async fn invalid_sec_version() {
+            const REQUEST: &str = "GET / HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Upgrade: websocket\r\n\
+            Connection: upgrade\r\n\
+            Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+            Sec-WebSocket-Version: 12\r\n\
+            \r\n";
 
-            let server = async move {
-                match WebSocket::accept::<16>(
-                    AcceptOptions::new(&[]),
-                    FromTokio::new(server),
-                    StdRng::from_os_rng(),
-                    read_buf,
-                    write_buf,
-                    fragments_buf,
-                )
-                .await
-                {
-                    Ok(_) => panic!("Expected error, but got Ok"),
-                    Err(error) => {
-                        println!("Error: {:?}", error);
-                        assert!(matches!(
-                            error,
-                            Error::Handshake(HandshakeError::WrongHttpVersion)
-                        ));
-                    }
-                }
-            };
+            quick_handshake_error!(REQUEST, MissingOrInvalidSecVersion);
+        }
 
-            let client = async move {
-                client.write_all(REQUEST.as_bytes()).await.unwrap();
-            };
+        #[tokio::test]
+        async fn missing_sec_key() {
+            const REQUEST: &str = "GET / HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Upgrade: websocket\r\n\
+            Connection: upgrade\r\n\
+            Sec-WebSocket-Version: 13\r\n\
+            \r\n";
 
-            tokio::join!(server, client);
+            quick_handshake_error!(REQUEST, MissingSecKey);
         }
 
         #[tokio::test]
@@ -870,4 +864,93 @@ mod server {
     }
 }
 
-// TODO: test every possible error variant
+mod fragmentation {
+    use crate::{
+        CloseFrame,
+        error::{Error, FragmentationError},
+    };
+
+    use super::*;
+
+    #[tokio::test]
+    async fn invalid_fragment_size() {
+        let (client, _) = tokio::io::duplex(16);
+
+        let read_buf = &mut [0u8; SIZE];
+        let write_buf = &mut [0u8; SIZE];
+        let fragments_buf = &mut [0u8; SIZE];
+
+        let mut websocketz = WebSocket::client(
+            FromTokio::new(client),
+            StdRng::from_os_rng(),
+            read_buf,
+            write_buf,
+            fragments_buf,
+        );
+
+        match websocketz.send_fragmented(Message::Text("test"), 0).await {
+            Ok(_) => panic!("Expected InvalidFragmentSize error, but got Ok"),
+            Err(error) => {
+                assert!(matches!(
+                    error,
+                    Error::Fragmentation(FragmentationError::InvalidFragmentSize)
+                ));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn only_text_and_binary_can_be_fragmented() {
+        let (client, _) = tokio::io::duplex(16);
+
+        let read_buf = &mut [0u8; SIZE];
+        let write_buf = &mut [0u8; SIZE];
+        let fragments_buf = &mut [0u8; SIZE];
+
+        let mut websocketz = WebSocket::client(
+            FromTokio::new(client),
+            StdRng::from_os_rng(),
+            read_buf,
+            write_buf,
+            fragments_buf,
+        );
+
+        match websocketz.send_fragmented(Message::Ping(b"ping"), 16).await {
+            Ok(_) => panic!("Expected InvalidFragmentation error, but got Ok"),
+            Err(error) => {
+                assert!(matches!(
+                    error,
+                    Error::Fragmentation(FragmentationError::CanNotBeFragmented)
+                ));
+            }
+        }
+
+        match websocketz.send_fragmented(Message::Pong(b"pong"), 16).await {
+            Ok(_) => panic!("Expected InvalidFragmentation error, but got Ok"),
+            Err(error) => {
+                assert!(matches!(
+                    error,
+                    Error::Fragmentation(FragmentationError::CanNotBeFragmented)
+                ));
+            }
+        }
+
+        match websocketz
+            .send_fragmented(
+                Message::Close(Some(CloseFrame::new(CloseCode::Normal, "close"))),
+                16,
+            )
+            .await
+        {
+            Ok(_) => panic!("Expected InvalidFragmentation error, but got Ok"),
+            Err(error) => {
+                assert!(matches!(
+                    error,
+                    Error::Fragmentation(FragmentationError::CanNotBeFragmented)
+                ));
+            }
+        }
+    }
+}
+
+// TODO: test for read errors
