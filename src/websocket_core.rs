@@ -190,7 +190,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             },
         ];
 
-        let request = OutRequest::get(options.path, headers, options.headers);
+        let request = OutRequest::get_unchecked(options.path, headers, options.headers);
 
         let (codec, inner, state) = self.framed.into_parts();
 
@@ -215,7 +215,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             Some(Ok(response)) => {
                 let custom = on_response(&response).map_err(HandshakeError::Other)?;
 
-                if !matches!(response.code(), Some(101)) {
+                if !matches!(response.code(), 101) {
                     return Err(Error::Handshake(HandshakeError::InvalidStatusCode));
                 }
 
@@ -282,16 +282,13 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             Some(Ok(request)) => {
                 let custom = on_request(&request).map_err(HandshakeError::Other)?;
 
-                if !matches!(request.method(), Some("GET")) {
+                if !matches!(request.method(), "GET") {
                     return Err(Error::Handshake(HandshakeError::WrongHttpMethod));
                 }
 
                 // http version must be 1.1 or higher
-                match request.version() {
-                    Some(version) if version >= 1 => {}
-                    _ => {
-                        return Err(Error::Handshake(HandshakeError::WrongHttpVersion));
-                    }
+                if request.version() < 1 {
+                    return Err(Error::Handshake(HandshakeError::WrongHttpVersion));
                 }
 
                 if !request

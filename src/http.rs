@@ -97,22 +97,22 @@ impl Encoder<OutResponse<'_, '_>> for OutResponseCodec {
 #[derive(Debug)]
 pub struct Response<'buf, const N: usize> {
     /// The response minor version, such as `1` for `HTTP/1.1`.
-    pub version: Option<u8>,
+    pub version: u8,
     /// The response code, such as `200`.
-    pub code: Option<u16>,
+    pub code: u16,
     /// The response reason-phrase, such as `OK`.
     ///
     /// Contains an empty string if the reason-phrase was missing or contained invalid characters.
-    pub reason: Option<&'buf str>,
+    pub reason: &'buf str,
     /// The response headers.
     pub headers: [Header<'buf>; N],
 }
 
 impl<'buf, const N: usize> Response<'buf, N> {
     pub const fn new(
-        version: Option<u8>,
-        code: Option<u16>,
-        reason: Option<&'buf str>,
+        version: u8,
+        code: u16,
+        reason: &'buf str,
         headers: [Header<'buf>; N],
     ) -> Self {
         Response {
@@ -123,15 +123,15 @@ impl<'buf, const N: usize> Response<'buf, N> {
         }
     }
 
-    pub const fn version(&self) -> Option<u8> {
+    pub const fn version(&self) -> u8 {
         self.version
     }
 
-    pub const fn code(&self) -> Option<u16> {
+    pub const fn code(&self) -> u16 {
         self.code
     }
 
-    pub const fn reason(&self) -> Option<&'buf str> {
+    pub const fn reason(&self) -> &'buf str {
         self.reason
     }
 
@@ -162,7 +162,12 @@ impl<'buf, const N: usize> Decoder<'buf> for InResponseCodec<N> {
 
         match response.parse(src)? {
             Status::Complete(len) => Ok(Some((
-                Response::new(response.version, response.code, response.reason, headers),
+                Response::new(
+                    response.version.expect("must be some"),
+                    response.code.expect("must be some"),
+                    response.reason.expect("must be some"),
+                    headers,
+                ),
                 len,
             ))),
             Status::Partial => Ok(None),
@@ -172,14 +177,17 @@ impl<'buf, const N: usize> Decoder<'buf> for InResponseCodec<N> {
 
 #[derive(Debug)]
 pub struct OutRequest<'headers, 'buf> {
+    /// XXX: Must be valid
     method: &'buf str,
+    /// XXX: Must be valid. Can not be empty
     path: &'buf str,
     headers: &'headers [Header<'buf>],
     additional_headers: &'headers [Header<'buf>],
 }
 
 impl<'headers, 'buf> OutRequest<'headers, 'buf> {
-    const fn new(
+    /// See [`OutRequest`] docs.
+    const fn new_unchecked(
         method: &'buf str,
         path: &'buf str,
         headers: &'headers [Header<'buf>],
@@ -193,12 +201,13 @@ impl<'headers, 'buf> OutRequest<'headers, 'buf> {
         }
     }
 
-    pub const fn get(
+    /// See [`OutRequest`] docs.
+    pub const fn get_unchecked(
         path: &'buf str,
         headers: &'headers [Header<'buf>],
         additional_headers: &'headers [Header<'buf>],
     ) -> Self {
-        Self::new("GET", path, headers, additional_headers)
+        Self::new_unchecked("GET", path, headers, additional_headers)
     }
 }
 
@@ -245,20 +254,20 @@ impl Encoder<OutRequest<'_, '_>> for OutRequestCodec {
 #[derive(Debug)]
 pub struct Request<'buf, const N: usize> {
     /// The request method, such as `GET`.
-    pub method: Option<&'buf str>,
+    pub method: &'buf str,
     /// The request path, such as `/about-us`.
-    pub path: Option<&'buf str>,
+    pub path: &'buf str,
     /// The request minor version, such as `1` for `HTTP/1.1`.
-    pub version: Option<u8>,
+    pub version: u8,
     /// The request headers.
     pub headers: [Header<'buf>; N],
 }
 
 impl<'buf, const N: usize> Request<'buf, N> {
     pub const fn new(
-        method: Option<&'buf str>,
-        path: Option<&'buf str>,
-        version: Option<u8>,
+        method: &'buf str,
+        path: &'buf str,
+        version: u8,
         headers: [Header<'buf>; N],
     ) -> Self {
         Request {
@@ -269,15 +278,15 @@ impl<'buf, const N: usize> Request<'buf, N> {
         }
     }
 
-    pub const fn method(&self) -> Option<&'buf str> {
+    pub const fn method(&self) -> &'buf str {
         self.method
     }
 
-    pub const fn path(&self) -> Option<&'buf str> {
+    pub const fn path(&self) -> &'buf str {
         self.path
     }
 
-    pub const fn version(&self) -> Option<u8> {
+    pub const fn version(&self) -> u8 {
         self.version
     }
 
@@ -308,7 +317,12 @@ impl<'buf, const N: usize> Decoder<'buf> for InRequestCodec<N> {
 
         match request.parse(src)? {
             Status::Complete(len) => Ok(Some((
-                Request::new(request.method, request.path, request.version, headers),
+                Request::new(
+                    request.method.expect("must be some"),
+                    request.path.expect("must be some"),
+                    request.version.expect("must be some"),
+                    headers,
+                ),
                 len,
             ))),
             Status::Partial => Ok(None),
@@ -358,7 +372,7 @@ mod tests {
 
                 let (response, len) = codec.decode(&mut response).unwrap().unwrap();
 
-                assert_eq!(response.code(), Some(200));
+                assert_eq!(response.code(), 200);
                 assert_eq!(
                     response.headers().header_value_str("content-type"),
                     Some("text/plain")
@@ -486,7 +500,7 @@ mod tests {
 
             #[test]
             fn ok() {
-                let request = OutRequest::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+                let request = OutRequest::get_unchecked("/index.html", HEADERS, ADDITIONAL_HEADERS);
 
                 let mut codec = OutRequestCodec::new();
 
@@ -500,7 +514,7 @@ mod tests {
 
             #[test]
             fn buffer_too_small() {
-                let request = OutRequest::get("/index.html", HEADERS, ADDITIONAL_HEADERS);
+                let request = OutRequest::get_unchecked("/index.html", HEADERS, ADDITIONAL_HEADERS);
 
                 let mut codec = OutRequestCodec::new();
 
