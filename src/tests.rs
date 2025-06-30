@@ -272,7 +272,7 @@ mod client {
 
                 let client = async move {
                     match WebSocket::connect::<16>(
-                        ConnectOptions::new("/", &[]),
+                        ConnectOptions::default(),
                         FromTokio::new(client),
                         StdRng::from_os_rng(),
                         read_buf,
@@ -357,7 +357,7 @@ mod client {
                 let fragments_buf = &mut [];
 
                 let _ = WebSocket::accept_with(
-                    AcceptOptions::new(&[]),
+                    AcceptOptions::default(),
                     FromTokio::new(server),
                     StdRng::from_os_rng(),
                     read_buf,
@@ -374,7 +374,7 @@ mod client {
                 let fragments_buf = &mut [];
 
                 match WebSocket::connect::<16>(
-                    ConnectOptions::new("/", &[]),
+                    ConnectOptions::default(),
                     FromTokio::new(client),
                     StdRng::from_os_rng(),
                     read_buf,
@@ -432,7 +432,7 @@ mod client {
 
             let client = async move {
                 let mut websocketz = WebSocket::connect::<16>(
-                    ConnectOptions::new("/", &[]),
+                    ConnectOptions::default(),
                     FromTokio::new(client),
                     StdRng::from_os_rng(),
                     read_buf,
@@ -687,7 +687,7 @@ mod server {
 
                 let server = async move {
                     match WebSocket::accept::<16>(
-                        AcceptOptions::new(&[]),
+                        AcceptOptions::default(),
                         FromTokio::new(server),
                         StdRng::from_os_rng(),
                         read_buf,
@@ -771,7 +771,7 @@ mod server {
             let fragments_buf = &mut [];
 
             match WebSocket::accept::<16>(
-                AcceptOptions::new(&[]),
+                AcceptOptions::default(),
                 FromTokio::new(server),
                 StdRng::from_os_rng(),
                 read_buf,
@@ -801,7 +801,7 @@ mod server {
 
             let server = async move {
                 let mut websocketz = WebSocket::accept::<16>(
-                    AcceptOptions::new(&[]),
+                    AcceptOptions::default(),
                     FromTokio::new(server),
                     StdRng::from_os_rng(),
                     read_buf,

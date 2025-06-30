@@ -39,13 +39,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut fragments_buf = vec![0u8; SIZE];
 
             let (websocketz, custom) = WebSocket::accept_with(
-                AcceptOptions::new(
+                AcceptOptions::default()
                     // Additional response headers
-                    &[Header {
+                    .with_headers(&[Header {
                         name: "Server-Header",
                         value: b"Server-Value",
-                    }],
-                ),
+                    }]),
                 FromTokio::new(stream),
                 StdRng::from_os_rng(),
                 &mut read_buf,

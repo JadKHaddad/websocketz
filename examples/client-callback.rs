@@ -44,13 +44,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rng = StdRng::from_os_rng();
 
     let (websocketz, custom) = WebSocket::connect_with(
-        ConnectOptions::new(
-            "/", // Additional request headers
-            &[Header {
+        ConnectOptions::default()
+            // Additional request headers
+            .with_headers(&[Header {
                 name: "Client-Header",
                 value: b"Client-Value",
-            }],
-        ),
+            }]),
         FromTokio::new(stream),
         rng,
         read_buf,

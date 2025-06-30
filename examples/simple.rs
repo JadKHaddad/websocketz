@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rng = StdRng::from_os_rng();
 
     let mut websocketz = WebSocket::connect::<16>(
-        ConnectOptions::new("/", &[]),
+        ConnectOptions::default(),
         FromTokio::new(stream),
         rng,
         read_buf,

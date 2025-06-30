@@ -19,7 +19,7 @@ async fn connect<'buf>(
     }];
 
     let websocketz = WebSocket::connect::<16>(
-        ConnectOptions::new(path, headers),
+        ConnectOptions::new_unchecked(path).with_headers(headers),
         FromTokio::new(stream),
         StdRng::from_os_rng(),
         read_buf,

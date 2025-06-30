@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut fragments_buf = vec![0u8; SIZE];
 
             let websocketz = WebSocket::accept::<16>(
-                AcceptOptions::new(&[]),
+                AcceptOptions::default(),
                 FromTokio::new(stream),
                 StdRng::from_os_rng(),
                 &mut read_buf,
