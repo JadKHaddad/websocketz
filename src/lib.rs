@@ -19,8 +19,7 @@ mod fragments;
 mod frame;
 use frame::{Frame, FrameMut, Header};
 
-mod http;
-pub use http::{Request, Response};
+pub mod http;
 
 mod mask;
 

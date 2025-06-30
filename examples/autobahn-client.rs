@@ -1,8 +1,9 @@
 use embedded_io_adapters::tokio_1::FromTokio;
-use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpStream;
-use websocketz::{CloseCode, CloseFrame, Message, WebSocket, next, options::ConnectOptions};
+use websocketz::{
+    CloseCode, CloseFrame, Message, WebSocket, http::Header, next, options::ConnectOptions,
+};
 
 async fn connect<'buf>(
     path: &str,

@@ -2,6 +2,7 @@ use httparse::Header;
 
 #[derive(Debug)]
 pub struct ConnectOptions<'a, 'b> {
+    /// Can not be empty
     pub path: &'a str,
     pub headers: &'a [Header<'b>],
 }

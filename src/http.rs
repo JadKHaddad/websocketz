@@ -1,9 +1,10 @@
 use framez::{decode::Decoder, encode::Encoder};
-use httparse::{Header, Status};
+pub use httparse::Header;
+use httparse::Status;
 
 use crate::error::{HttpDecodeError, HttpEncodeError};
 
-pub trait HeaderExt {
+pub(crate) trait HeaderExt {
     fn header(&self, name: &str) -> Option<&Header<'_>>;
 
     fn header_value(&self, name: &str) -> Option<&'_ [u8]> {
@@ -23,7 +24,7 @@ impl HeaderExt for [Header<'_>] {
 }
 
 #[derive(Debug)]
-pub struct OutResponse<'headers, 'buf> {
+pub(crate) struct OutResponse<'headers, 'buf> {
     code: &'buf str,
     status: &'buf str,
     headers: &'headers [Header<'buf>],
@@ -54,7 +55,7 @@ impl<'headers, 'buf> OutResponse<'headers, 'buf> {
 }
 
 #[derive(Debug)]
-pub struct OutResponseCodec {}
+pub(crate) struct OutResponseCodec {}
 
 impl OutResponseCodec {
     pub const fn new() -> Self {
@@ -141,7 +142,7 @@ impl<'buf, const N: usize> Response<'buf, N> {
 }
 
 #[derive(Debug)]
-pub struct InResponseCodec<const N: usize> {}
+pub(crate) struct InResponseCodec<const N: usize> {}
 
 impl<const N: usize> InResponseCodec<N> {
     pub const fn new() -> Self {
@@ -176,7 +177,7 @@ impl<'buf, const N: usize> Decoder<'buf> for InResponseCodec<N> {
 }
 
 #[derive(Debug)]
-pub struct OutRequest<'headers, 'buf> {
+pub(crate) struct OutRequest<'headers, 'buf> {
     /// XXX: Must be valid
     method: &'buf str,
     /// XXX: Must be valid. Can not be empty
@@ -212,7 +213,7 @@ impl<'headers, 'buf> OutRequest<'headers, 'buf> {
 }
 
 #[derive(Debug)]
-pub struct OutRequestCodec {}
+pub(crate) struct OutRequestCodec {}
 
 impl OutRequestCodec {
     pub const fn new() -> Self {
@@ -296,7 +297,7 @@ impl<'buf, const N: usize> Request<'buf, N> {
 }
 
 #[derive(Debug)]
-pub struct InRequestCodec<const N: usize> {}
+pub(crate) struct InRequestCodec<const N: usize> {}
 
 impl<const N: usize> InRequestCodec<N> {
     pub const fn new() -> Self {

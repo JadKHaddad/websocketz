@@ -231,8 +231,8 @@ mod client {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
         use crate::{
-            Request,
             error::{Error, HandshakeError},
+            http::Request,
             options::AcceptOptions,
         };
 

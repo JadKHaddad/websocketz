@@ -11,7 +11,7 @@ use embedded_io_adapters::tokio_1::FromTokio;
 use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::{TcpListener, TcpStream};
-use websocketz::{Message, Request, WebSocket, next, options::AcceptOptions};
+use websocketz::{Message, WebSocket, http::Request, next, options::AcceptOptions};
 
 #[derive(Debug, thiserror::Error)]
 #[error("Oh no!")]

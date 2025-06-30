@@ -17,7 +17,7 @@ use tokio::{
     io::{ReadHalf, WriteHalf},
     net::TcpStream,
 };
-use websocketz::{Message, Response, WebSocket, next, options::ConnectOptions};
+use websocketz::{Message, WebSocket, http::Response, next, options::ConnectOptions};
 
 #[derive(Debug, thiserror::Error)]
 #[error("Oh no!")]
