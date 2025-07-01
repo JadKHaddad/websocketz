@@ -2,6 +2,7 @@
 name = "websocketz"
 version = "0.0.0"
 edition = "2024"
+rust-version = "1.85.1"
 authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
