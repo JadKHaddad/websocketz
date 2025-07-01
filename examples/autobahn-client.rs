@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut fragments_buf = vec![0u8; SIZE];
 
         let websocketz = connect(
-            &format!("/runCase?case={}&agent=websocketz", case),
+            &format!("/runCase?case={case}&agent=websocketz"),
             &mut read_buf,
             &mut write_buf,
             &mut fragments_buf,
@@ -128,7 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Some(Err(err)) => {
-                    println!("Error reading message: {}", err);
+                    println!("Error reading message: {err}");
 
                     websocketz_write.send(Message::Close(None)).await?;
 

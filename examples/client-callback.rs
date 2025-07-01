@@ -20,7 +20,7 @@ use tokio::{
 use websocketz::{Message, WebSocket, http::Response, next, options::ConnectOptions};
 
 #[derive(Debug, thiserror::Error)]
-#[error("Oh no!")]
+#[error("No `Server-Header: Server-Value` header in the response")]
 struct CustomError {}
 
 fn split(

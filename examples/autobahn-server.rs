@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Message::Pong(_) => {}
                     },
                     Some(Err(err)) => {
-                        println!("Error reading message: {}", err);
+                        println!("Error reading message: {err}");
 
                         websocketz_write.send(Message::Close(None)).await?;
 
@@ -84,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         tokio::spawn(async move {
             if let Err(err) = future.await {
-                eprintln!("Error handling connection: {}", err);
+                eprintln!("Error handling connection: {err}");
             }
         });
     }

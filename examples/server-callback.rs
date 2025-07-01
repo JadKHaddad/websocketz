@@ -14,7 +14,7 @@ use tokio::net::{TcpListener, TcpStream};
 use websocketz::{Message, WebSocket, http::Request, next, options::AcceptOptions};
 
 #[derive(Debug, thiserror::Error)]
-#[error("Oh no!")]
+#[error("No `Client-Header: Client-Value` header in the request")]
 struct CustomError {}
 
 const SIZE: usize = 24 * 1024 * 1024;
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         tokio::spawn(async move {
             if let Err(err) = future.await {
-                eprintln!("Error handling connection: {}", err);
+                eprintln!("Error handling connection: {err}");
             }
         });
     }
