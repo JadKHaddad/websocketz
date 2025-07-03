@@ -1,6 +1,6 @@
 use base64::{Engine as _, engine::general_purpose};
 use embedded_io_async::{Read, Write};
-use framez::{Echo, Framed, ReadWriteError};
+use framez::{Echo, Framed};
 use httparse::Header;
 use rand::RngCore;
 
@@ -370,7 +370,8 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         ))
     }
 
-    pub async fn maybe_next<'this>(
+    /// `maybe_next` version for the reader half of the websocket.
+    pub async fn maybe_next_read<'this>(
         &'this mut self,
     ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
@@ -383,6 +384,29 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         };
 
         Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame)
+    }
+
+    pub async fn maybe_next_auto<'this>(
+        &'this mut self,
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+    where
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        self.maybe_next_intern(|message| Echo::NoEcho(message))
+            .await
+    }
+
+    pub async fn maybe_next_echoed<'this, F>(
+        &'this mut self,
+        echo: F,
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+    where
+        F: FnOnce(Message<'_>) -> Echo<Message<'_>>,
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        self.maybe_next_intern(echo).await
     }
 
     const fn auto(&self) -> impl FnOnce(Frame<'_>) -> Echo<Frame<'_>> + 'static {
@@ -400,33 +424,11 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                 return Echo::Echo(Frame::new_final(OpCode::Close, CLOSE_CODE));
             }
 
+            // TODO: we have to handle the close frames like in the autobahn client example
+            // TODO: we should be able to tell if we should close the connection, so we can return in `maybe_next_intern`
+
             Echo::NoEcho(frame)
         }
-    }
-
-    pub async fn maybe_next_auto<'this>(
-        &'this mut self,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
-    where
-        RW: Read + Write,
-        Rng: RngCore,
-    {
-        let auto = self.auto();
-
-        let frame = match self.framed.maybe_next_echoed(auto).await? {
-            Ok(Some(frame)) => frame,
-            Ok(None) => return Some(Ok(None)),
-            Err(err) => match err {
-                ReadWriteError::Read(err) => {
-                    return Some(Err(Error::Read(ReadError::ReadFrame(err))));
-                }
-                ReadWriteError::Write(err) => {
-                    return Some(Err(Error::Write(WriteError::WriteFrame(err))));
-                }
-            },
-        };
-
-        Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame)
     }
 
     fn on_frame<'this>(
@@ -557,6 +559,70 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         }
 
         Some(Ok(None))
+    }
+
+    async fn maybe_next_intern<'this, F>(
+        &'this mut self,
+        echo: F,
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+    where
+        F: FnOnce(Message<'_>) -> Echo<Message<'_>>,
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        let auto = self.auto();
+
+        let frame = match framez::functions::maybe_next(
+            &mut self.framed.core.state.read,
+            &mut self.framed.core.codec,
+            &mut self.framed.core.read_write,
+        )
+        .await
+        {
+            Some(Ok(Some(frame))) => frame,
+            Some(Ok(None)) => return Some(Ok(None)),
+            Some(Err(err)) => return Some(Err(Error::Read(ReadError::ReadFrame(err)))),
+            None => return None,
+        };
+
+        let frame = match auto(frame) {
+            Echo::Echo(frame) => match framez::functions::send(
+                &mut self.framed.core.state.write,
+                &mut self.framed.core.codec,
+                &mut self.framed.core.read_write,
+                frame,
+            )
+            .await
+            {
+                Ok(_) => return Some(Ok(None)),
+                Err(err) => return Some(Err(Error::Write(WriteError::WriteFrame(err)))),
+            },
+            Echo::NoEcho(frame) => frame,
+        };
+
+        let message = Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame);
+
+        match message {
+            Some(Ok(Some(message))) => match echo(message) {
+                Echo::Echo(message) => {
+                    match framez::functions::send(
+                        &mut self.framed.core.state.write,
+                        &mut self.framed.core.codec,
+                        &mut self.framed.core.read_write,
+                        message,
+                    )
+                    .await
+                    {
+                        Ok(_) => Some(Ok(None)),
+                        Err(err) => Some(Err(Error::Write(WriteError::WriteFrame(err)))),
+                    }
+                }
+                Echo::NoEcho(message) => Some(Ok(Some(message))),
+            },
+            Some(Ok(None)) => Some(Ok(None)),
+            Some(Err(err)) => Some(Err(err)),
+            None => None,
+        }
     }
 
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>

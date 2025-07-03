@@ -1,6 +1,6 @@
 use embedded_io_async::{Read, Write};
 use framez::{
-    Framed,
+    Echo, Framed,
     state::{ReadState, ReadWriteState, WriteState},
 };
 use rand::RngCore;
@@ -249,6 +249,18 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         self.core.maybe_next_auto().await
     }
 
+    pub async fn maybe_next_echoed<'this, F>(
+        &'this mut self,
+        echo: F,
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+    where
+        F: FnOnce(Message<'_>) -> Echo<Message<'_>>,
+        RW: Read + Write,
+        Rng: RngCore,
+    {
+        self.core.maybe_next_echoed(echo).await
+    }
+
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
@@ -369,7 +381,7 @@ impl<'buf, RW> WebSocketRead<'buf, RW> {
     where
         RW: Read,
     {
-        self.core.maybe_next().await
+        self.core.maybe_next_read().await
     }
 }
 
