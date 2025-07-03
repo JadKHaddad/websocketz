@@ -1,9 +1,9 @@
+use std::convert::Infallible;
+
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
-use tokio::net::{TcpListener, TcpStream};
-use websocketz::{
-    CloseCode, CloseFrame, Message, WebSocket, error::Error, next, options::AcceptOptions,
-};
+use tokio::net::TcpListener;
+use websocketz::{Message, OnMessage, WebSocket, error::Error, next, options::AcceptOptions};
 
 const SIZE: usize = 24 * 1024 * 1024;
 
@@ -16,17 +16,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (stream, _) = listener.accept().await?;
 
         let future = async move {
-            let split = |stream: FromTokio<TcpStream>| {
-                let (read, write) = tokio::io::split(stream.into_inner());
-
-                (FromTokio::new(read), FromTokio::new(write))
-            };
-
             let mut read_buf = vec![0u8; SIZE];
             let mut write_buf = vec![0u8; SIZE];
             let mut fragments_buf = vec![0u8; SIZE];
 
-            let websocketz = WebSocket::accept::<16>(
+            let mut websocketz = WebSocket::accept::<16>(
                 AcceptOptions::default(),
                 FromTokio::new(stream),
                 StdRng::from_os_rng(),
@@ -36,46 +30,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await?;
 
-            let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
-
             loop {
-                match next!(websocketz_read) {
+                match next!(websocketz, |msg| {
+                    let on_message = match msg {
+                        Message::Text(payload) => OnMessage::Send(Message::Text(payload)),
+                        Message::Binary(payload) => OnMessage::Send(Message::Binary(payload)),
+                        _ => OnMessage::Noop(msg),
+                    };
+
+                    Ok::<_, Infallible>(on_message)
+                }) {
                     None => {
                         break;
                     }
-                    Some(Ok(msg)) => match msg {
-                        Message::Text(payload) => {
-                            websocketz_write.send(Message::Text(payload)).await?;
-                        }
-                        Message::Binary(payload) => {
-                            websocketz_write.send(Message::Binary(payload)).await?;
-                        }
-                        Message::Close(Some(frame)) => {
-                            websocketz_write.send(Message::Close(Some(frame))).await?;
 
-                            break;
-                        }
-                        Message::Close(None) => {
-                            websocketz_write
-                                .send(Message::Close(Some(CloseFrame::no_reason(
-                                    CloseCode::Normal,
-                                ))))
-                                .await?;
-
-                            break;
-                        }
-                        Message::Ping(payload) => {
-                            websocketz_write.send(Message::Pong(payload)).await?;
-                        }
-                        Message::Pong(_) => {}
-                    },
                     Some(Err(err)) => {
                         println!("Error reading message: {err}");
 
-                        websocketz_write.send(Message::Close(None)).await?;
+                        websocketz.send(Message::Close(None)).await?;
 
                         break;
                     }
+                    _ => {}
                 }
             }
 

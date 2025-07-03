@@ -1,13 +1,13 @@
 use base64::{Engine as _, engine::general_purpose};
 use embedded_io_async::{Read, Write};
-use framez::{Echo, Framed};
+use framez::Framed;
 use httparse::Header;
 use rand::RngCore;
 
 use sha1::{Digest, Sha1};
 
 use crate::{
-    CloseCode, CloseFrame, FramesCodec, Message, OpCode,
+    CloseCode, CloseFrame, FramesCodec, Message, OnMessage, OpCode,
     error::{Error, HandshakeError, ReadError, WriteError},
     frame::Frame,
     http::{
@@ -393,49 +393,98 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        self.maybe_next_intern(|message| Echo::NoEcho(message))
+        self.maybe_next_intern(|message| Ok(OnMessage::Noop(message)))
             .await
     }
 
-    pub async fn maybe_next_echoed<'this, F>(
+    pub async fn maybe_next_on_message<'this, F, E>(
         &'this mut self,
-        echo: F,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+        on_message: F,
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error, E>>>
     where
-        F: FnOnce(Message<'_>) -> Echo<Message<'_>>,
+        F: FnOnce(Message<'_>) -> Result<OnMessage<'_>, E>,
         RW: Read + Write,
         Rng: RngCore,
     {
-        self.maybe_next_intern(echo).await
+        self.maybe_next_intern(on_message).await
     }
 
-    const fn auto(&self) -> impl FnOnce(Frame<'_>) -> Echo<Frame<'_>> + 'static {
+    const fn auto<E>(
+        &self,
+    ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, Error<RW::Error, E>> + 'static
+    where
+        RW: Read + Write,
+    {
         let auto_pong = self.auto_pong;
         let auto_close = self.auto_close;
 
         move |frame| {
             if auto_pong && frame.opcode() == OpCode::Ping {
-                return Echo::Echo(Frame::new_final(OpCode::Pong, frame.payload()));
+                return Ok(OnFrame::Send(Message::Pong(frame.payload())));
             }
 
             if auto_close && frame.opcode() == OpCode::Close {
-                const CLOSE_CODE: &[u8] = &CloseCode::Normal.into_u16().to_be_bytes();
+                let close_frame = match Self::extract_close_frame(&frame) {
+                    Ok(close_frame) => close_frame,
+                    Err(err) => return Err(err),
+                };
 
-                return Echo::Echo(Frame::new_final(OpCode::Close, CLOSE_CODE));
+                match close_frame {
+                    Some(frame) => {
+                        return Ok(OnFrame::Send(Message::Close(Some(frame))));
+                    }
+                    None => {
+                        return Ok(OnFrame::Send(Message::Close(Some(CloseFrame::no_reason(
+                            CloseCode::Normal,
+                        )))));
+                    }
+                }
             }
 
-            // TODO: we have to handle the close frames like in the autobahn client example
-            // TODO: we should be able to tell if we should close the connection, so we can return in `maybe_next_intern`
-
-            Echo::NoEcho(frame)
+            Ok(OnFrame::Noop(frame))
         }
     }
 
-    fn on_frame<'this>(
+    fn extract_close_frame<'this, E>(
+        frame: &Frame<'this>,
+    ) -> Result<Option<CloseFrame<'this>>, Error<RW::Error, E>>
+    where
+        RW: Read,
+    {
+        let payload = frame.payload();
+
+        match payload.len() {
+            0 => {}
+            1 => {
+                return Err(Error::Read(ReadError::InvalidCloseFrame));
+            }
+            _ => {
+                let code = CloseCode::from_u16(u16::from_be_bytes([payload[0], payload[1]]));
+
+                if !code.is_allowed() {
+                    return Err(Error::Read(ReadError::InvalidCloseCode { code }));
+                }
+
+                match core::str::from_utf8(&payload[2..]) {
+                    Ok(reason) => {
+                        return Ok(Some(CloseFrame::new(code, reason)));
+                    }
+                    Err(_) => {
+                        return Err(Error::Read(ReadError::InvalidUTF8));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn on_frame<'this, E>(
         fragmented: &mut Option<Fragmented>,
         fragments_buffer: &'this mut [u8],
         frame: Frame<'this>,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error, E>>>
     where
         RW: Read,
     {
@@ -520,35 +569,12 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                 }
             }
             OpCode::Close => {
-                let payload = frame.payload();
+                let close_frame = match Self::extract_close_frame(&frame) {
+                    Ok(close_frame) => close_frame,
+                    Err(err) => return Some(Err(err)),
+                };
 
-                match payload.len() {
-                    0 => {}
-                    1 => {
-                        return Some(Err(Error::Read(ReadError::InvalidCloseFrame)));
-                    }
-                    _ => {
-                        let code =
-                            CloseCode::from_u16(u16::from_be_bytes([payload[0], payload[1]]));
-
-                        if !code.is_allowed() {
-                            return Some(Err(Error::Read(ReadError::InvalidCloseCode { code })));
-                        }
-
-                        match core::str::from_utf8(&payload[2..]) {
-                            Ok(reason) => {
-                                let close_frame = CloseFrame::new(code, reason);
-
-                                return Some(Ok(Some(Message::Close(Some(close_frame)))));
-                            }
-                            Err(_) => {
-                                return Some(Err(Error::Read(ReadError::InvalidUTF8)));
-                            }
-                        }
-                    }
-                }
-
-                return Some(Ok(Some(Message::Close(None))));
+                return Some(Ok(Some(Message::Close(close_frame))));
             }
             OpCode::Ping => {
                 return Some(Ok(Some(Message::Ping(frame.payload()))));
@@ -561,12 +587,12 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Some(Ok(None))
     }
 
-    async fn maybe_next_intern<'this, F>(
+    async fn maybe_next_intern<'this, F, E>(
         &'this mut self,
-        echo: F,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+        on_message: F,
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error, E>>>
     where
-        F: FnOnce(Message<'_>) -> Echo<Message<'_>>,
+        F: FnOnce(Message<'_>) -> Result<OnMessage<'_>, E>,
         RW: Read + Write,
         Rng: RngCore,
     {
@@ -586,25 +612,10 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         };
 
         let frame = match auto(frame) {
-            Echo::Echo(frame) => match framez::functions::send(
-                &mut self.framed.core.state.write,
-                &mut self.framed.core.codec,
-                &mut self.framed.core.read_write,
-                frame,
-            )
-            .await
-            {
-                Ok(_) => return Some(Ok(None)),
-                Err(err) => return Some(Err(Error::Write(WriteError::WriteFrame(err)))),
-            },
-            Echo::NoEcho(frame) => frame,
-        };
+            Ok(on_frame) => match on_frame {
+                OnFrame::Send(message) => {
+                    let is_close = message.is_close();
 
-        let message = Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame);
-
-        match message {
-            Some(Ok(Some(message))) => match echo(message) {
-                Echo::Echo(message) => {
                     match framez::functions::send(
                         &mut self.framed.core.state.write,
                         &mut self.framed.core.codec,
@@ -613,11 +624,39 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                     )
                     .await
                     {
-                        Ok(_) => Some(Ok(None)),
-                        Err(err) => Some(Err(Error::Write(WriteError::WriteFrame(err)))),
+                        Ok(_) => match is_close {
+                            false => return Some(Ok(None)),
+                            true => return None,
+                        },
+                        Err(err) => return Some(Err(Error::Write(WriteError::WriteFrame(err)))),
                     }
                 }
-                Echo::NoEcho(message) => Some(Ok(Some(message))),
+                OnFrame::Noop(frame) => frame,
+            },
+            Err(err) => return Some(Err(err)),
+        };
+
+        let message = Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame);
+
+        match message {
+            Some(Ok(Some(message))) => match on_message(message) {
+                Ok(on_message) => match on_message {
+                    OnMessage::Send(message) => {
+                        match framez::functions::send(
+                            &mut self.framed.core.state.write,
+                            &mut self.framed.core.codec,
+                            &mut self.framed.core.read_write,
+                            message,
+                        )
+                        .await
+                        {
+                            Ok(_) => Some(Ok(None)),
+                            Err(err) => Some(Err(Error::Write(WriteError::WriteFrame(err)))),
+                        }
+                    }
+                    OnMessage::Noop(message) => Some(Ok(Some(message))),
+                },
+                Err(err) => Some(Err(Error::Message(err))),
             },
             Some(Ok(None)) => Some(Ok(None)),
             Some(Err(err)) => Some(Err(err)),
@@ -659,4 +698,10 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
         Ok(())
     }
+}
+
+#[derive(Debug)]
+pub enum OnFrame<'a> {
+    Send(Message<'a>),
+    Noop(Frame<'a>),
 }

@@ -21,10 +21,6 @@ impl<'a> Frame<'a> {
         }
     }
 
-    pub const fn new_final(opcode: OpCode, payload: &'a [u8]) -> Self {
-        Self::new(true, opcode, payload)
-    }
-
     /// Returns whether this is the final frame in a message.
     pub const fn is_final(&self) -> bool {
         self.fin

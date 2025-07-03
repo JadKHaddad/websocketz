@@ -31,6 +31,9 @@ pub mod mock;
 
 mod next;
 
+mod on_message;
+pub use on_message::OnMessage;
+
 mod opcode;
 use opcode::OpCode;
 

@@ -17,13 +17,9 @@ macro_rules! next {
             }
         }
     }};
-}
-
-#[macro_export]
-macro_rules! next_echoed {
     ($framed:ident, $f:expr) => {{
         'next: loop {
-            match $framed.maybe_next_echoed($f).await {
+            match $framed.maybe_next_on_message($f).await {
                 Some(Ok(None)) => continue 'next,
                 Some(Ok(Some(item))) => break 'next Some(Ok(item)),
                 Some(Err(err)) => break 'next Some(Err(err)),

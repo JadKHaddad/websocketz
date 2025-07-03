@@ -1,12 +1,12 @@
 use embedded_io_async::{Read, Write};
 use framez::{
-    Echo, Framed,
+    Framed,
     state::{ReadState, ReadWriteState, WriteState},
 };
 use rand::RngCore;
 
 use crate::{
-    FramesCodec, Message, WebSocketCore,
+    FramesCodec, Message, OnMessage, WebSocketCore,
     error::Error,
     http::{Request, Response},
     options::{AcceptOptions, ConnectOptions},
@@ -249,16 +249,16 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         self.core.maybe_next_auto().await
     }
 
-    pub async fn maybe_next_echoed<'this, F>(
+    pub async fn maybe_next_on_message<'this, F, E>(
         &'this mut self,
-        echo: F,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+        on_message: F,
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error, E>>>
     where
-        F: FnOnce(Message<'_>) -> Echo<Message<'_>>,
+        F: FnOnce(Message<'_>) -> Result<OnMessage<'_>, E>,
         RW: Read + Write,
         Rng: RngCore,
     {
-        self.core.maybe_next_echoed(echo).await
+        self.core.maybe_next_on_message(on_message).await
     }
 
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
