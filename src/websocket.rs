@@ -246,7 +246,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        self.core.maybe_next_echoed().await
+        self.core.maybe_next_auto().await
     }
 
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>

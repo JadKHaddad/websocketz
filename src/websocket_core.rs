@@ -385,30 +385,35 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame)
     }
 
-    pub async fn maybe_next_echoed<'this>(
+    const fn auto(&self) -> impl FnOnce(Frame<'_>) -> Echo<Frame<'_>> + 'static {
+        let auto_pong = self.auto_pong;
+        let auto_close = self.auto_close;
+
+        move |frame| {
+            if auto_pong && frame.opcode() == OpCode::Ping {
+                return Echo::Echo(Frame::new_final(OpCode::Pong, frame.payload()));
+            }
+
+            if auto_close && frame.opcode() == OpCode::Close {
+                const CLOSE_CODE: &[u8] = &CloseCode::Normal.into_u16().to_be_bytes();
+
+                return Echo::Echo(Frame::new_final(OpCode::Close, CLOSE_CODE));
+            }
+
+            Echo::NoEcho(frame)
+        }
+    }
+
+    pub async fn maybe_next_auto<'this>(
         &'this mut self,
     ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
         RW: Read + Write,
         Rng: RngCore,
     {
-        let frame = match self
-            .framed
-            .maybe_next_echoed(|frame| {
-                if self.auto_pong && frame.opcode() == OpCode::Ping {
-                    return Echo::Echo(Frame::new_final(OpCode::Pong, frame.payload()));
-                };
+        let auto = self.auto();
 
-                if self.auto_close && frame.opcode() == OpCode::Close {
-                    const CLOSE_CODE: &[u8] = &CloseCode::Normal.into_u16().to_be_bytes();
-
-                    return Echo::Echo(Frame::new_final(OpCode::Close, CLOSE_CODE));
-                }
-
-                Echo::NoEcho(frame)
-            })
-            .await?
-        {
+        let frame = match self.framed.maybe_next_echoed(auto).await? {
             Ok(Some(frame)) => frame,
             Ok(None) => return Some(Ok(None)),
             Err(err) => match err {
