@@ -1,7 +1,7 @@
 # Websocketz
 
-![Build Status](https://github.com/JadKHaddad/websocketz/actions/workflows/build-and-test.yaml/badge.svg)
-![Autobahn](https://github.com/JadKHaddad/websocketz/actions/workflows/autobahn.yaml/badge.svg)
+![Build Status](https://github.com/JadKHaddad/websocketz/actions/workflows/build-and-test.yml/badge.svg)
+![Autobahn](https://github.com/JadKHaddad/websocketz/actions/workflows/autobahn.yml/badge.svg)
 [![crates.io](https://img.shields.io/crates/v/websocketz.svg)](https://crates.io/crates/websocketz)
 [![Crates.io (MSRV)](https://img.shields.io/crates/msrv/websocketz)](https://crates.io/crates/websocketz)
 [![docs.rs](https://docs.rs/websocketz/badge.svg)](https://docs.rs/websocketz)
