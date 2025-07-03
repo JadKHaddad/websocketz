@@ -132,6 +132,18 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
             .await
     }
 
+    #[inline]
+    pub const fn with_auto_pong(mut self, auto_pong: bool) -> Self {
+        self.core.set_auto_pong(auto_pong);
+        self
+    }
+
+    #[inline]
+    pub const fn with_auto_close(mut self, auto_close: bool) -> Self {
+        self.core.set_auto_close(auto_close);
+        self
+    }
+
     /// Returns reference to the reader/writer.
     #[inline]
     pub const fn inner(&self) -> &RW {
@@ -231,9 +243,10 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         &'this mut self,
     ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
-        RW: Read,
+        RW: Read + Write,
+        Rng: RngCore,
     {
-        self.core.maybe_next().await
+        self.core.maybe_next_echoed().await
     }
 
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
@@ -256,6 +269,11 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         self.core.send_fragmented(message, fragment_size).await
     }
 
+    /// Splits the [`WebSocket`] into a [`WebSocketRead`] and a [`WebSocketWrite`].
+    ///
+    /// # Note
+    ///
+    /// `auto_pong` and `auto_close` will `NOT` be applied to the split instances.
     pub fn split_with<F, R, W>(self, f: F) -> (WebSocketRead<'buf, R>, WebSocketWrite<'buf, W, Rng>)
     where
         F: FnOnce(RW) -> (R, W),

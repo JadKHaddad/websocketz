@@ -440,7 +440,9 @@ mod client {
                     fragments_buf,
                 )
                 .await
-                .unwrap();
+                .unwrap()
+                .with_auto_close(false)
+                .with_auto_pong(false);
 
                 match next!(websocketz) {
                     Some(Ok(Message::Close(Some(frame)))) => {
@@ -954,3 +956,4 @@ mod fragmentation {
 }
 
 // TODO: test for read errors
+// TODO: test auto ping and auto close
