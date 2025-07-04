@@ -17,14 +17,41 @@ macro_rules! next {
             }
         }
     }};
-    ($framed:ident, $f:expr) => {{
+}
+
+#[macro_export]
+macro_rules! next_ {
+    ($websocketz:expr) => {{
         'next: loop {
-            match $framed.maybe_next_on_message($f).await {
+            match $crate::maybe_next_auto(
+                $websocketz.core.auto(),
+                &mut $websocketz.core.framed.core.codec,
+                &mut $websocketz.core.framed.core.inner,
+                &mut $websocketz.core.framed.core.state.read,
+                &mut $websocketz.core.framed.core.state.write,
+                &mut $websocketz.core.fragmented,
+                &mut $websocketz.core.fragments_buffer,
+            )
+            .await
+            {
                 Some(Ok(None)) => continue 'next,
                 Some(Ok(Some(item))) => break 'next Some(Ok(item)),
                 Some(Err(err)) => break 'next Some(Err(err)),
                 None => break 'next None,
             }
         }
+    }};
+}
+
+#[macro_export]
+macro_rules! send {
+    ($websocketz:expr, $message:expr) => {{
+        $crate::send(
+            &mut $websocketz.core.framed.core.codec,
+            &mut $websocketz.core.framed.core.inner,
+            &mut $websocketz.core.framed.core.state.write,
+            $message,
+        )
+        .await
     }};
 }

@@ -1,9 +1,7 @@
-use std::convert::Infallible;
-
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpListener;
-use websocketz::{Message, OnMessage, WebSocket, error::Error, next, options::AcceptOptions};
+use websocketz::{Message, WebSocket, error::Error, next_, options::AcceptOptions, send};
 
 const SIZE: usize = 24 * 1024 * 1024;
 
@@ -31,19 +29,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?;
 
             loop {
-                match next!(websocketz, |msg| {
-                    let on_message = match msg {
-                        Message::Text(payload) => OnMessage::Send(Message::Text(payload)),
-                        Message::Binary(payload) => OnMessage::Send(Message::Binary(payload)),
-                        _ => OnMessage::Noop(msg),
-                    };
-
-                    Ok::<_, Infallible>(on_message)
-                }) {
+                match next_!(websocketz) {
                     None => {
                         break;
                     }
-
+                    Some(Ok(message)) => match message {
+                        Message::Text(payload) => send!(websocketz, Message::Text(payload))?,
+                        Message::Binary(payload) => send!(websocketz, Message::Binary(payload))?,
+                        _ => {}
+                    },
                     Some(Err(err)) => {
                         println!("Error reading message: {err}");
 
@@ -51,7 +45,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         break;
                     }
-                    _ => {}
                 }
             }
 

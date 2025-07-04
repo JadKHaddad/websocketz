@@ -1,13 +1,16 @@
 use base64::{Engine as _, engine::general_purpose};
 use embedded_io_async::{Read, Write};
-use framez::Framed;
+use framez::{
+    Framed,
+    state::{ReadState, WriteState},
+};
 use httparse::Header;
 use rand::RngCore;
 
 use sha1::{Digest, Sha1};
 
 use crate::{
-    CloseCode, CloseFrame, FramesCodec, Message, OnMessage, OpCode,
+    CloseCode, CloseFrame, FramesCodec, Message, OpCode,
     error::{Error, HandshakeError, ReadError, WriteError},
     frame::Frame,
     http::{
@@ -393,25 +396,23 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        self.maybe_next_intern(|message| Ok(OnMessage::Noop(message)))
-            .await
+        maybe_next_auto(
+            self.auto(),
+            &mut self.framed.core.codec,
+            &mut self.framed.core.inner,
+            &mut self.framed.core.state.read,
+            &mut self.framed.core.state.write,
+            &mut self.fragmented,
+            &mut self.fragments_buffer,
+        )
+        .await
     }
 
-    pub async fn maybe_next_on_message<'this, F, E>(
-        &'this mut self,
-        on_message: F,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error, E>>>
-    where
-        F: FnOnce(Message<'_>) -> Result<OnMessage<'_>, E>,
-        RW: Read + Write,
-        Rng: RngCore,
-    {
-        self.maybe_next_intern(on_message).await
-    }
-
-    const fn auto<E>(
+    // TODO: rework the error to remove the RW bound and not return a bound error with RW::ERROR
+    #[doc(hidden)]
+    pub const fn auto(
         &self,
-    ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, Error<RW::Error, E>> + 'static
+    ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, Error<RW::Error>> + 'static
     where
         RW: Read + Write,
     {
@@ -445,9 +446,10 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         }
     }
 
-    fn extract_close_frame<'this, E>(
+    // TODO: rw bound must be removed
+    fn extract_close_frame<'this>(
         frame: &Frame<'this>,
-    ) -> Result<Option<CloseFrame<'this>>, Error<RW::Error, E>>
+    ) -> Result<Option<CloseFrame<'this>>, Error<RW::Error>>
     where
         RW: Read,
     {
@@ -479,12 +481,13 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Ok(None)
     }
 
+    // TODO: rw must be removed
     #[allow(clippy::type_complexity)]
-    fn on_frame<'this, E>(
+    fn on_frame<'this>(
         fragmented: &mut Option<Fragmented>,
         fragments_buffer: &'this mut [u8],
         frame: Frame<'this>,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error, E>>>
+    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
         RW: Read,
     {
@@ -587,83 +590,6 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Some(Ok(None))
     }
 
-    async fn maybe_next_intern<'this, F, E>(
-        &'this mut self,
-        on_message: F,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error, E>>>
-    where
-        F: FnOnce(Message<'_>) -> Result<OnMessage<'_>, E>,
-        RW: Read + Write,
-        Rng: RngCore,
-    {
-        let auto = self.auto();
-
-        let frame = match framez::functions::maybe_next(
-            &mut self.framed.core.state.read,
-            &mut self.framed.core.codec,
-            &mut self.framed.core.read_write,
-        )
-        .await
-        {
-            Some(Ok(Some(frame))) => frame,
-            Some(Ok(None)) => return Some(Ok(None)),
-            Some(Err(err)) => return Some(Err(Error::Read(ReadError::ReadFrame(err)))),
-            None => return None,
-        };
-
-        let frame = match auto(frame) {
-            Ok(on_frame) => match on_frame {
-                OnFrame::Send(message) => {
-                    let is_close = message.is_close();
-
-                    match framez::functions::send(
-                        &mut self.framed.core.state.write,
-                        &mut self.framed.core.codec,
-                        &mut self.framed.core.read_write,
-                        message,
-                    )
-                    .await
-                    {
-                        Ok(_) => match is_close {
-                            false => return Some(Ok(None)),
-                            true => return None,
-                        },
-                        Err(err) => return Some(Err(Error::Write(WriteError::WriteFrame(err)))),
-                    }
-                }
-                OnFrame::Noop(frame) => frame,
-            },
-            Err(err) => return Some(Err(err)),
-        };
-
-        let message = Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame);
-
-        match message {
-            Some(Ok(Some(message))) => match on_message(message) {
-                Ok(on_message) => match on_message {
-                    OnMessage::Send(message) => {
-                        match framez::functions::send(
-                            &mut self.framed.core.state.write,
-                            &mut self.framed.core.codec,
-                            &mut self.framed.core.read_write,
-                            message,
-                        )
-                        .await
-                        {
-                            Ok(_) => Some(Ok(None)),
-                            Err(err) => Some(Err(Error::Write(WriteError::WriteFrame(err)))),
-                        }
-                    }
-                    OnMessage::Noop(message) => Some(Ok(Some(message))),
-                },
-                Err(err) => Some(Err(Error::Message(err))),
-            },
-            Some(Ok(None)) => Some(Ok(None)),
-            Some(Err(err)) => Some(Err(err)),
-            None => None,
-        }
-    }
-
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
@@ -704,4 +630,65 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 pub enum OnFrame<'a> {
     Send(Message<'a>),
     Noop(Frame<'a>),
+}
+
+// TODO: move to functions
+pub async fn maybe_next_auto<'this, F, RW, Rng>(
+    auto: F,
+    codec: &mut FramesCodec<Rng>,
+    inner: &mut RW,
+    read_state: &'this mut ReadState<'_>,
+    write_state: &mut WriteState<'_>,
+    fragmented: &mut Option<Fragmented>,
+    fragments_buffer: &'this mut [u8],
+) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
+where
+    RW: Read + Write,
+    Rng: RngCore,
+    F: FnOnce(Frame<'_>) -> Result<OnFrame<'_>, Error<RW::Error>> + 'static,
+{
+    let frame = match framez::functions::maybe_next(read_state, codec, inner).await {
+        Some(Ok(Some(frame))) => frame,
+        Some(Ok(None)) => return Some(Ok(None)),
+        Some(Err(err)) => return Some(Err(Error::Read(ReadError::ReadFrame(err)))),
+        None => return None,
+    };
+
+    let frame = match auto(frame) {
+        Ok(on_frame) => match on_frame {
+            OnFrame::Send(message) => {
+                let is_close = message.is_close();
+
+                match framez::functions::send(write_state, codec, inner, message).await {
+                    Ok(_) => match is_close {
+                        false => return Some(Ok(None)),
+                        true => return None,
+                    },
+                    Err(err) => return Some(Err(Error::Write(WriteError::WriteFrame(err)))),
+                }
+            }
+            OnFrame::Noop(frame) => frame,
+        },
+        Err(err) => return Some(Err(err)),
+    };
+
+    WebSocketCore::<RW, Rng>::on_frame(fragmented, fragments_buffer, frame)
+}
+
+// TODO: move to functions
+pub async fn send<'this, RW, Rng>(
+    codec: &mut FramesCodec<Rng>,
+    inner: &mut RW,
+    write_state: &mut WriteState<'_>,
+    message: Message<'_>,
+) -> Result<(), Error<RW::Error>>
+where
+    RW: Write,
+    Rng: RngCore,
+{
+    framez::functions::send(write_state, codec, inner, message)
+        .await
+        .map_err(|err| Error::Write(WriteError::WriteFrame(err)))?;
+
+    Ok(())
 }

@@ -31,9 +31,6 @@ pub mod mock;
 
 mod next;
 
-mod on_message;
-pub use on_message::OnMessage;
-
 mod opcode;
 use opcode::OpCode;
 
@@ -41,6 +38,7 @@ pub mod options;
 
 mod websocket_core;
 use websocket_core::WebSocketCore;
+pub use websocket_core::{maybe_next_auto, send};
 
 mod websocket;
 pub use websocket::{WebSocket, WebSocketRead, WebSocketWrite};

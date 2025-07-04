@@ -6,7 +6,7 @@ use framez::{
 use rand::RngCore;
 
 use crate::{
-    FramesCodec, Message, OnMessage, WebSocketCore,
+    FramesCodec, Message, WebSocketCore,
     error::Error,
     http::{Request, Response},
     options::{AcceptOptions, ConnectOptions},
@@ -14,7 +14,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct WebSocket<'buf, RW, Rng> {
-    core: WebSocketCore<'buf, RW, Rng>,
+    pub core: WebSocketCore<'buf, RW, Rng>,
 }
 
 impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
@@ -247,18 +247,6 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         Rng: RngCore,
     {
         self.core.maybe_next_auto().await
-    }
-
-    pub async fn maybe_next_on_message<'this, F, E>(
-        &'this mut self,
-        on_message: F,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error, E>>>
-    where
-        F: FnOnce(Message<'_>) -> Result<OnMessage<'_>, E>,
-        RW: Read + Write,
-        Rng: RngCore,
-    {
-        self.core.maybe_next_on_message(on_message).await
     }
 
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>

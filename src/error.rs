@@ -153,6 +153,4 @@ pub enum Error<I, E = NoError> {
         #[source]
         FragmentationError,
     ),
-    #[error("Message error: {0}")]
-    Message(#[source] E),
 }
