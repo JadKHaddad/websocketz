@@ -11,7 +11,7 @@ use sha1::{Digest, Sha1};
 
 use crate::{
     CloseCode, CloseFrame, FramesCodec, Message, OpCode,
-    error::{Error, HandshakeError, ReadError, WriteError},
+    error::{Error, FrameError, HandshakeError, ReadError, WriteError},
     frame::Frame,
     http::{
         HeaderExt, InRequestCodec, InResponseCodec, OutRequest, OutRequestCodec, OutResponse,
@@ -387,6 +387,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         };
 
         Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame)
+            .map(|result| result.map_err(|err| Error::Read(ReadError::Frame(err))))
     }
 
     pub async fn maybe_next_auto<'this>(
@@ -403,19 +404,15 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             &mut self.framed.core.state.read,
             &mut self.framed.core.state.write,
             &mut self.fragmented,
-            &mut self.fragments_buffer,
+            self.fragments_buffer,
         )
         .await
     }
 
-    // TODO: rework the error to remove the RW bound and not return a bound error with RW::ERROR
     #[doc(hidden)]
     pub const fn auto(
         &self,
-    ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, Error<RW::Error>> + 'static
-    where
-        RW: Read + Write,
-    {
+    ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, FrameError> + 'static {
         let auto_pong = self.auto_pong;
         let auto_close = self.auto_close;
 
@@ -446,25 +443,21 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         }
     }
 
-    // TODO: rw bound must be removed
     fn extract_close_frame<'this>(
         frame: &Frame<'this>,
-    ) -> Result<Option<CloseFrame<'this>>, Error<RW::Error>>
-    where
-        RW: Read,
-    {
+    ) -> Result<Option<CloseFrame<'this>>, FrameError> {
         let payload = frame.payload();
 
         match payload.len() {
             0 => {}
             1 => {
-                return Err(Error::Read(ReadError::InvalidCloseFrame));
+                return Err(FrameError::InvalidCloseFrame);
             }
             _ => {
                 let code = CloseCode::from_u16(u16::from_be_bytes([payload[0], payload[1]]));
 
                 if !code.is_allowed() {
-                    return Err(Error::Read(ReadError::InvalidCloseCode { code }));
+                    return Err(FrameError::InvalidCloseCode { code });
                 }
 
                 match core::str::from_utf8(&payload[2..]) {
@@ -472,7 +465,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                         return Ok(Some(CloseFrame::new(code, reason)));
                     }
                     Err(_) => {
-                        return Err(Error::Read(ReadError::InvalidUTF8));
+                        return Err(FrameError::InvalidUTF8);
                     }
                 }
             }
@@ -481,21 +474,17 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Ok(None)
     }
 
-    // TODO: rw must be removed
     #[allow(clippy::type_complexity)]
     fn on_frame<'this>(
         fragmented: &mut Option<Fragmented>,
         fragments_buffer: &'this mut [u8],
         frame: Frame<'this>,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
-    where
-        RW: Read,
-    {
+    ) -> Option<Result<Option<Message<'this>>, FrameError>> {
         match frame.opcode() {
             OpCode::Text | OpCode::Binary => {
                 if frame.is_final() {
                     if fragmented.is_some() {
-                        return Some(Err(Error::Read(ReadError::InvalidFragment)));
+                        return Some(Err(FrameError::InvalidFragment));
                     }
 
                     match frame.opcode() {
@@ -507,7 +496,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                                 return Some(Ok(Some(Message::Text(text))));
                             }
                             Err(_) => {
-                                return Some(Err(Error::Read(ReadError::InvalidUTF8)));
+                                return Some(Err(FrameError::InvalidUTF8));
                             }
                         },
                         _ => unreachable!("Already matched for OpCode::Text | OpCode::Binary"),
@@ -515,7 +504,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                 }
 
                 if frame.payload().len() > fragments_buffer.len() {
-                    return Some(Err(Error::Read(ReadError::FragmentsBufferTooSmall)));
+                    return Some(Err(FrameError::FragmentsBufferTooSmall));
                 }
 
                 fragments_buffer[..frame.payload().len()].copy_from_slice(frame.payload());
@@ -528,11 +517,11 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             OpCode::Continuation => {
                 let message = match fragmented.as_mut() {
                     None => {
-                        return Some(Err(Error::Read(ReadError::InvalidContinuationFrame)));
+                        return Some(Err(FrameError::InvalidContinuationFrame));
                     }
                     Some(fragmented) => {
                         if fragmented.index + frame.payload().len() > fragments_buffer.len() {
-                            return Some(Err(Error::Read(ReadError::FragmentsBufferTooSmall)));
+                            return Some(Err(FrameError::FragmentsBufferTooSmall));
                         }
 
                         fragments_buffer[fragmented.index..][..frame.payload().len()]
@@ -548,7 +537,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                                     ) {
                                         Ok(text) => Some(Message::Text(text)),
                                         Err(_) => {
-                                            return Some(Err(Error::Read(ReadError::InvalidUTF8)));
+                                            return Some(Err(FrameError::InvalidUTF8));
                                         }
                                     }
                                 }
@@ -645,7 +634,7 @@ pub async fn maybe_next_auto<'this, F, RW, Rng>(
 where
     RW: Read + Write,
     Rng: RngCore,
-    F: FnOnce(Frame<'_>) -> Result<OnFrame<'_>, Error<RW::Error>> + 'static,
+    F: FnOnce(Frame<'_>) -> Result<OnFrame<'_>, FrameError> + 'static,
 {
     let frame = match framez::functions::maybe_next(read_state, codec, inner).await {
         Some(Ok(Some(frame))) => frame,
@@ -669,14 +658,15 @@ where
             }
             OnFrame::Noop(frame) => frame,
         },
-        Err(err) => return Some(Err(err)),
+        Err(err) => return Some(Err(Error::Read(ReadError::Frame(err)))),
     };
 
     WebSocketCore::<RW, Rng>::on_frame(fragmented, fragments_buffer, frame)
+        .map(|result| result.map_err(|err| Error::Read(ReadError::Frame(err))))
 }
 
 // TODO: move to functions
-pub async fn send<'this, RW, Rng>(
+pub async fn send<RW, Rng>(
     codec: &mut FramesCodec<Rng>,
     inner: &mut RW,
     write_state: &mut WriteState<'_>,

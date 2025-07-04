@@ -46,6 +46,22 @@ pub enum HttpEncodeError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum FrameError {
+    #[error("Invalid close frame")]
+    InvalidCloseFrame,
+    #[error("Invalid close code: {code:?}")]
+    InvalidCloseCode { code: CloseCode },
+    #[error("Invalid UTF-8")]
+    InvalidUTF8,
+    #[error("Invalid fragment")]
+    InvalidFragment,
+    #[error("Invalid continuation frame")]
+    InvalidContinuationFrame,
+    #[error("Fragments buffer too small to read a frame")]
+    FragmentsBufferTooSmall,
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum ReadError<I> {
     #[error("Read frame error: {0}")]
     ReadFrame(
@@ -59,18 +75,12 @@ pub enum ReadError<I> {
         #[from]
         framez::ReadError<I, HttpDecodeError>,
     ),
-    #[error("Invalid close frame")]
-    InvalidCloseFrame,
-    #[error("Invalid close code: {code:?}")]
-    InvalidCloseCode { code: CloseCode },
-    #[error("Invalid UTF-8")]
-    InvalidUTF8,
-    #[error("Invalid fragment")]
-    InvalidFragment,
-    #[error("Invalid continuation frame")]
-    InvalidContinuationFrame,
-    #[error("Fragments buffer too small to read a frame")]
-    FragmentsBufferTooSmall,
+    #[error("Frame error: {0}")]
+    Frame(
+        #[source]
+        #[from]
+        FrameError,
+    ),
 }
 
 #[derive(Debug, thiserror::Error)]
