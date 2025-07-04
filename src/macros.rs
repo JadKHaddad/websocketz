@@ -23,7 +23,7 @@ macro_rules! next {
 macro_rules! next_ {
     ($websocketz:expr) => {{
         'next: loop {
-            match $crate::maybe_next_auto(
+            match $crate::functions::maybe_next_auto(
                 $websocketz.core.auto(),
                 &mut $websocketz.core.framed.core.codec,
                 &mut $websocketz.core.framed.core.inner,
@@ -46,7 +46,7 @@ macro_rules! next_ {
 #[macro_export]
 macro_rules! send {
     ($websocketz:expr, $message:expr) => {{
-        $crate::send(
+        $crate::functions::send(
             &mut $websocketz.core.framed.core.codec,
             &mut $websocketz.core.framed.core.inner,
             &mut $websocketz.core.framed.core.state.write,

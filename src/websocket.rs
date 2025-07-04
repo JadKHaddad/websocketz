@@ -14,6 +14,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct WebSocket<'buf, RW, Rng> {
+    #[doc(hidden)]
     pub core: WebSocketCore<'buf, RW, Rng>,
 }
 
@@ -164,7 +165,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
 
     /// Returns the number of bytes that can be framed.
     #[inline]
-    pub fn framable(&self) -> usize {
+    pub const fn framable(&self) -> usize {
         self.core.framable()
     }
 
@@ -359,7 +360,7 @@ impl<'buf, RW> WebSocketRead<'buf, RW> {
 
     /// Returns the number of bytes that can be framed.
     #[inline]
-    pub fn framable(&self) -> usize {
+    pub const fn framable(&self) -> usize {
         self.core.framable()
     }
 

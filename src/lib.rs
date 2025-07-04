@@ -19,6 +19,8 @@ mod fragments;
 mod frame;
 use frame::{Frame, FrameMut, Header};
 
+pub mod functions;
+
 pub mod http;
 
 mod mask;
@@ -37,8 +39,7 @@ use opcode::OpCode;
 pub mod options;
 
 mod websocket_core;
-use websocket_core::WebSocketCore;
-pub use websocket_core::{maybe_next_auto, send};
+use websocket_core::{Fragmented, OnFrame, WebSocketCore};
 
 mod websocket;
 pub use websocket::{WebSocket, WebSocketRead, WebSocketWrite};
