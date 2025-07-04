@@ -11,7 +11,7 @@ use sha1::{Digest, Sha1};
 
 use crate::{
     CloseCode, CloseFrame, FramesCodec, Message, OpCode,
-    error::{Error, FrameError, HandshakeError, ReadError, WriteError},
+    error::{Error, HandshakeError, ProtocolError, ReadError, WriteError},
     frame::Frame,
     http::{
         HeaderExt, InRequestCodec, InResponseCodec, OutRequest, OutRequestCodec, OutResponse,
@@ -387,7 +387,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         };
 
         Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame)
-            .map(|result| result.map_err(|err| Error::Read(ReadError::Frame(err))))
+            .map(|result| result.map_err(Error::from))
     }
 
     pub async fn maybe_next_auto<'this>(
@@ -412,7 +412,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
     #[doc(hidden)]
     pub const fn auto(
         &self,
-    ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, FrameError> + 'static {
+    ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, ProtocolError> + 'static {
         let auto_pong = self.auto_pong;
         let auto_close = self.auto_close;
 
@@ -445,19 +445,19 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
     fn extract_close_frame<'this>(
         frame: &Frame<'this>,
-    ) -> Result<Option<CloseFrame<'this>>, FrameError> {
+    ) -> Result<Option<CloseFrame<'this>>, ProtocolError> {
         let payload = frame.payload();
 
         match payload.len() {
             0 => {}
             1 => {
-                return Err(FrameError::InvalidCloseFrame);
+                return Err(ProtocolError::InvalidCloseFrame);
             }
             _ => {
                 let code = CloseCode::from_u16(u16::from_be_bytes([payload[0], payload[1]]));
 
                 if !code.is_allowed() {
-                    return Err(FrameError::InvalidCloseCode { code });
+                    return Err(ProtocolError::InvalidCloseCode { code });
                 }
 
                 match core::str::from_utf8(&payload[2..]) {
@@ -465,7 +465,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                         return Ok(Some(CloseFrame::new(code, reason)));
                     }
                     Err(_) => {
-                        return Err(FrameError::InvalidUTF8);
+                        return Err(ProtocolError::InvalidUTF8);
                     }
                 }
             }
@@ -474,17 +474,16 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Ok(None)
     }
 
-    #[allow(clippy::type_complexity)]
     fn on_frame<'this>(
         fragmented: &mut Option<Fragmented>,
         fragments_buffer: &'this mut [u8],
         frame: Frame<'this>,
-    ) -> Option<Result<Option<Message<'this>>, FrameError>> {
+    ) -> Option<Result<Option<Message<'this>>, OnFrameError>> {
         match frame.opcode() {
             OpCode::Text | OpCode::Binary => {
                 if frame.is_final() {
                     if fragmented.is_some() {
-                        return Some(Err(FrameError::InvalidFragment));
+                        return Some(Err(OnFrameError::Protocol(ProtocolError::InvalidFragment)));
                     }
 
                     match frame.opcode() {
@@ -496,7 +495,9 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                                 return Some(Ok(Some(Message::Text(text))));
                             }
                             Err(_) => {
-                                return Some(Err(FrameError::InvalidUTF8));
+                                return Some(Err(OnFrameError::Protocol(
+                                    ProtocolError::InvalidUTF8,
+                                )));
                             }
                         },
                         _ => unreachable!("Already matched for OpCode::Text | OpCode::Binary"),
@@ -504,7 +505,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                 }
 
                 if frame.payload().len() > fragments_buffer.len() {
-                    return Some(Err(FrameError::FragmentsBufferTooSmall));
+                    return Some(Err(OnFrameError::FragmentsBufferTooSmall));
                 }
 
                 fragments_buffer[..frame.payload().len()].copy_from_slice(frame.payload());
@@ -517,11 +518,13 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             OpCode::Continuation => {
                 let message = match fragmented.as_mut() {
                     None => {
-                        return Some(Err(FrameError::InvalidContinuationFrame));
+                        return Some(Err(OnFrameError::Protocol(
+                            ProtocolError::InvalidContinuationFrame,
+                        )));
                     }
                     Some(fragmented) => {
                         if fragmented.index + frame.payload().len() > fragments_buffer.len() {
-                            return Some(Err(FrameError::FragmentsBufferTooSmall));
+                            return Some(Err(OnFrameError::FragmentsBufferTooSmall));
                         }
 
                         fragments_buffer[fragmented.index..][..frame.payload().len()]
@@ -537,7 +540,9 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                                     ) {
                                         Ok(text) => Some(Message::Text(text)),
                                         Err(_) => {
-                                            return Some(Err(FrameError::InvalidUTF8));
+                                            return Some(Err(OnFrameError::Protocol(
+                                                ProtocolError::InvalidUTF8,
+                                            )));
                                         }
                                     }
                                 }
@@ -563,7 +568,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             OpCode::Close => {
                 let close_frame = match Self::extract_close_frame(&frame) {
                     Ok(close_frame) => close_frame,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Some(Err(OnFrameError::Protocol(err))),
                 };
 
                 return Some(Ok(Some(Message::Close(close_frame))));
@@ -616,9 +621,27 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 }
 
 #[derive(Debug)]
+#[doc(hidden)]
 pub enum OnFrame<'a> {
     Send(Message<'a>),
     Noop(Frame<'a>),
+}
+
+#[derive(Debug)]
+enum OnFrameError {
+    Protocol(ProtocolError),
+    FragmentsBufferTooSmall,
+}
+
+impl<I> From<OnFrameError> for Error<I> {
+    fn from(err: OnFrameError) -> Self {
+        match err {
+            OnFrameError::Protocol(err) => Error::Read(ReadError::Protocol(err)),
+            OnFrameError::FragmentsBufferTooSmall => {
+                Error::Read(ReadError::FragmentsBufferTooSmall)
+            }
+        }
+    }
 }
 
 // TODO: move to functions
@@ -634,7 +657,7 @@ pub async fn maybe_next_auto<'this, F, RW, Rng>(
 where
     RW: Read + Write,
     Rng: RngCore,
-    F: FnOnce(Frame<'_>) -> Result<OnFrame<'_>, FrameError> + 'static,
+    F: FnOnce(Frame<'_>) -> Result<OnFrame<'_>, ProtocolError> + 'static,
 {
     let frame = match framez::functions::maybe_next(read_state, codec, inner).await {
         Some(Ok(Some(frame))) => frame,
@@ -658,11 +681,11 @@ where
             }
             OnFrame::Noop(frame) => frame,
         },
-        Err(err) => return Some(Err(Error::Read(ReadError::Frame(err)))),
+        Err(err) => return Some(Err(Error::Read(ReadError::Protocol(err)))),
     };
 
     WebSocketCore::<RW, Rng>::on_frame(fragmented, fragments_buffer, frame)
-        .map(|result| result.map_err(|err| Error::Read(ReadError::Frame(err))))
+        .map(|result| result.map_err(Error::from))
 }
 
 // TODO: move to functions

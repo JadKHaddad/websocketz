@@ -46,7 +46,7 @@ pub enum HttpEncodeError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum FrameError {
+pub enum ProtocolError {
     #[error("Invalid close frame")]
     InvalidCloseFrame,
     #[error("Invalid close code: {code:?}")]
@@ -57,8 +57,6 @@ pub enum FrameError {
     InvalidFragment,
     #[error("Invalid continuation frame")]
     InvalidContinuationFrame,
-    #[error("Fragments buffer too small to read a frame")]
-    FragmentsBufferTooSmall,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -75,12 +73,14 @@ pub enum ReadError<I> {
         #[from]
         framez::ReadError<I, HttpDecodeError>,
     ),
-    #[error("Frame error: {0}")]
-    Frame(
+    #[error("Protocol error: {0}")]
+    Protocol(
         #[source]
         #[from]
-        FrameError,
+        ProtocolError,
     ),
+    #[error("Fragments buffer too small to read a frame")]
+    FragmentsBufferTooSmall,
 }
 
 #[derive(Debug, thiserror::Error)]
