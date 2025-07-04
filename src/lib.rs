@@ -29,7 +29,7 @@ pub use message::Message;
 #[doc(hidden)]
 pub mod mock;
 
-mod next;
+mod macros;
 
 mod opcode;
 use opcode::OpCode;
