@@ -6,7 +6,7 @@ use framez::{
 use rand::RngCore;
 
 use crate::{
-    FramesCodec, Message, WebSocketCore,
+    FragmentsState, FramesCodec, Message, WebSocketCore,
     error::Error,
     http::{Request, Response},
     options::{AcceptOptions, ConnectOptions},
@@ -28,7 +28,13 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
         Self {
-            core: WebSocketCore::client(inner, rng, read_buffer, write_buffer, fragments_buffer),
+            core: WebSocketCore::client(
+                inner,
+                rng,
+                read_buffer,
+                write_buffer,
+                FragmentsState::new(fragments_buffer),
+            ),
         }
     }
 
@@ -41,7 +47,13 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
         Self {
-            core: WebSocketCore::server(inner, rng, read_buffer, write_buffer, fragments_buffer),
+            core: WebSocketCore::server(
+                inner,
+                rng,
+                read_buffer,
+                write_buffer,
+                FragmentsState::new(fragments_buffer),
+            ),
         }
     }
 
@@ -297,7 +309,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         );
 
         (
-            WebSocketRead::new_from_framed(framed_read, self.core.fragments_buffer),
+            WebSocketRead::new_from_framed(framed_read, self.core.fragments_state),
             WebSocketWrite::new_from_framed(framed_write),
         )
     }
@@ -311,10 +323,10 @@ pub struct WebSocketRead<'buf, RW> {
 impl<'buf, RW> WebSocketRead<'buf, RW> {
     const fn new_from_framed(
         framed: Framed<'buf, FramesCodec<()>, RW>,
-        fragments_buffer: &'buf mut [u8],
+        fragments_state: FragmentsState<'buf>,
     ) -> Self {
         Self {
-            core: WebSocketCore::new_from_framed(framed, fragments_buffer),
+            core: WebSocketCore::new_from_framed(framed, fragments_state),
         }
     }
 
@@ -325,7 +337,13 @@ impl<'buf, RW> WebSocketRead<'buf, RW> {
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
         Self {
-            core: WebSocketCore::client(inner, (), read_buffer, &mut [], fragments_buffer),
+            core: WebSocketCore::client(
+                inner,
+                (),
+                read_buffer,
+                &mut [],
+                FragmentsState::new(fragments_buffer),
+            ),
         }
     }
 
@@ -336,7 +354,13 @@ impl<'buf, RW> WebSocketRead<'buf, RW> {
         fragments_buffer: &'buf mut [u8],
     ) -> Self {
         Self {
-            core: WebSocketCore::server(inner, (), read_buffer, &mut [], fragments_buffer),
+            core: WebSocketCore::server(
+                inner,
+                (),
+                read_buffer,
+                &mut [],
+                FragmentsState::new(fragments_buffer),
+            ),
         }
     }
 
@@ -382,21 +406,21 @@ pub struct WebSocketWrite<'buf, RW, Rng> {
 impl<'buf, RW, Rng> WebSocketWrite<'buf, RW, Rng> {
     const fn new_from_framed(framed: Framed<'buf, FramesCodec<Rng>, RW>) -> Self {
         Self {
-            core: WebSocketCore::new_from_framed(framed, &mut []),
+            core: WebSocketCore::new_from_framed(framed, FragmentsState::empty()),
         }
     }
 
     /// Creates a new [`WebSocketWrite`] client after a successful handshake.
     pub const fn client(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
-            core: WebSocketCore::client(inner, rng, &mut [], write_buffer, &mut []),
+            core: WebSocketCore::client(inner, rng, &mut [], write_buffer, FragmentsState::empty()),
         }
     }
 
     /// Creates a new [`WebSocketWrite`] server after a successful handshake.
     pub const fn server(inner: RW, rng: Rng, write_buffer: &'buf mut [u8]) -> Self {
         Self {
-            core: WebSocketCore::server(inner, rng, &mut [], write_buffer, &mut []),
+            core: WebSocketCore::server(inner, rng, &mut [], write_buffer, FragmentsState::empty()),
         }
     }
 

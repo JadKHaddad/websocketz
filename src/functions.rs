@@ -3,9 +3,10 @@ use framez::state::{ReadState, WriteState};
 use rand::RngCore;
 
 use crate::{
-    Fragmented, Frame, Message, OnFrame, WebSocketCore,
+    Frame, Message, OnFrame, WebSocketCore,
     codec::FramesCodec,
     error::{Error, ProtocolError, ReadError, WriteError},
+    websocket_core::FragmentsState,
 };
 
 pub async fn maybe_next_auto<'this, F, RW, Rng>(
@@ -14,8 +15,7 @@ pub async fn maybe_next_auto<'this, F, RW, Rng>(
     inner: &mut RW,
     read_state: &'this mut ReadState<'_>,
     write_state: &mut WriteState<'_>,
-    fragmented: &mut Option<Fragmented>,
-    fragments_buffer: &'this mut [u8],
+    fragments_state: &'this mut FragmentsState<'_>,
 ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
 where
     RW: Read + Write,
@@ -47,7 +47,7 @@ where
         Err(err) => return Some(Err(Error::Read(ReadError::Protocol(err)))),
     };
 
-    WebSocketCore::<RW, Rng>::on_frame(fragmented, fragments_buffer, frame)
+    WebSocketCore::<RW, Rng>::on_frame(fragments_state, frame)
         .map(|result| result.map_err(Error::from))
 }
 

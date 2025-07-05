@@ -29,8 +29,7 @@ macro_rules! next_ {
                 &mut $websocketz.core.framed.core.inner,
                 &mut $websocketz.core.framed.core.state.read,
                 &mut $websocketz.core.framed.core.state.write,
-                &mut $websocketz.core.fragmented,
-                &mut $websocketz.core.fragments_buffer,
+                &mut $websocketz.core.fragments_state,
             )
             .await
             {

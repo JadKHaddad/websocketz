@@ -20,7 +20,28 @@ use crate::{
 
 #[derive(Debug)]
 #[doc(hidden)]
-pub struct Fragmented {
+pub struct FragmentsState<'buf> {
+    fragmented: Option<Fragmented>,
+    fragments_buffer: &'buf mut [u8],
+}
+
+impl<'buf> FragmentsState<'buf> {
+    #[inline]
+    pub(crate) const fn new(fragments_buffer: &'buf mut [u8]) -> Self {
+        Self {
+            fragmented: None,
+            fragments_buffer,
+        }
+    }
+
+    #[inline]
+    pub(crate) const fn empty() -> Self {
+        Self::new(&mut [])
+    }
+}
+
+#[derive(Debug)]
+struct Fragmented {
     opcode: OpCode,
     index: usize,
 }
@@ -28,9 +49,8 @@ pub struct Fragmented {
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct WebSocketCore<'buf, RW, Rng> {
-    pub fragmented: Option<Fragmented>,
-    pub fragments_buffer: &'buf mut [u8],
     pub framed: Framed<'buf, FramesCodec<Rng>, RW>,
+    pub fragments_state: FragmentsState<'buf>,
     auto_pong: bool,
     auto_close: bool,
 }
@@ -39,13 +59,11 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
     #[inline]
     const fn from_framed(
         framed: Framed<'buf, FramesCodec<Rng>, RW>,
-        fragmented: Option<Fragmented>,
-        fragments_buffer: &'buf mut [u8],
+        fragments_state: FragmentsState<'buf>,
     ) -> Self {
         Self {
-            fragmented,
-            fragments_buffer,
             framed,
+            fragments_state,
             auto_pong: true,
             auto_close: true,
         }
@@ -54,9 +72,9 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
     #[inline]
     pub(crate) const fn new_from_framed(
         framed: Framed<'buf, FramesCodec<Rng>, RW>,
-        fragments_buffer: &'buf mut [u8],
+        fragments_state: FragmentsState<'buf>,
     ) -> Self {
-        Self::from_framed(framed, None, fragments_buffer)
+        Self::from_framed(framed, fragments_state)
     }
 
     #[inline]
@@ -65,11 +83,11 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         rng: Rng,
         read_buffer: &'buf mut [u8],
         write_buffer: &'buf mut [u8],
-        fragments_buffer: &'buf mut [u8],
+        fragments_state: FragmentsState<'buf>,
     ) -> Self {
         Self::new_from_framed(
             Framed::new(FramesCodec::new(rng), inner, read_buffer, write_buffer),
-            fragments_buffer,
+            fragments_state,
         )
     }
 
@@ -79,9 +97,9 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         rng: Rng,
         read_buffer: &'buf mut [u8],
         write_buffer: &'buf mut [u8],
-        fragments_buffer: &'buf mut [u8],
+        fragments_state: FragmentsState<'buf>,
     ) -> Self {
-        Self::new(inner, rng, read_buffer, write_buffer, fragments_buffer).into_server()
+        Self::new(inner, rng, read_buffer, write_buffer, fragments_state).into_server()
     }
 
     #[inline]
@@ -90,9 +108,9 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         rng: Rng,
         read_buffer: &'buf mut [u8],
         write_buffer: &'buf mut [u8],
-        fragments_buffer: &'buf mut [u8],
+        fragments_state: FragmentsState<'buf>,
     ) -> Self {
-        Self::new(inner, rng, read_buffer, write_buffer, fragments_buffer).into_client()
+        Self::new(inner, rng, read_buffer, write_buffer, fragments_state).into_client()
     }
 
     #[inline]
@@ -277,10 +295,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
         let framed = Framed::from_parts(codec, inner, state);
 
-        Ok((
-            Self::from_framed(framed, self.fragmented, self.fragments_buffer),
-            custom,
-        ))
+        Ok((Self::from_framed(framed, self.fragments_state), custom))
     }
 
     pub(crate) async fn server_handshake<const N: usize, F, T, E>(
@@ -366,10 +381,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
         let framed = Framed::from_parts(codec, inner, state);
 
-        Ok((
-            Self::from_framed(framed, self.fragmented, self.fragments_buffer),
-            custom,
-        ))
+        Ok((Self::from_framed(framed, self.fragments_state), custom))
     }
 
     /// `maybe_next` version for the reader half of the websocket.
@@ -385,8 +397,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             Err(err) => return Some(Err(Error::Read(ReadError::ReadFrame(err)))),
         };
 
-        Self::on_frame(&mut self.fragmented, self.fragments_buffer, frame)
-            .map(|result| result.map_err(Error::from))
+        Self::on_frame(&mut self.fragments_state, frame).map(|result| result.map_err(Error::from))
     }
 
     pub(crate) async fn maybe_next_auto<'this>(
@@ -402,8 +413,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             &mut self.framed.core.inner,
             &mut self.framed.core.state.read,
             &mut self.framed.core.state.write,
-            &mut self.fragmented,
-            self.fragments_buffer,
+            &mut self.fragments_state,
         )
         .await
     }
@@ -474,14 +484,13 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
     }
 
     pub(crate) fn on_frame<'this>(
-        fragmented: &mut Option<Fragmented>,
-        fragments_buffer: &'this mut [u8],
+        fragments_state: &'this mut FragmentsState<'_>,
         frame: Frame<'this>,
     ) -> Option<Result<Option<Message<'this>>, OnFrameError>> {
         match frame.opcode() {
             OpCode::Text | OpCode::Binary => {
                 if frame.is_final() {
-                    if fragmented.is_some() {
+                    if fragments_state.fragmented.is_some() {
                         return Some(Err(OnFrameError::Protocol(ProtocolError::InvalidFragment)));
                     }
 
@@ -503,30 +512,34 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                     }
                 }
 
-                if frame.payload().len() > fragments_buffer.len() {
+                if frame.payload().len() > fragments_state.fragments_buffer.len() {
                     return Some(Err(OnFrameError::FragmentsBufferTooSmall));
                 }
 
-                fragments_buffer[..frame.payload().len()].copy_from_slice(frame.payload());
+                fragments_state.fragments_buffer[..frame.payload().len()]
+                    .copy_from_slice(frame.payload());
 
-                *fragmented = Some(Fragmented {
+                fragments_state.fragmented = Some(Fragmented {
                     opcode: frame.opcode(),
                     index: frame.payload().len(),
                 });
             }
             OpCode::Continuation => {
-                let message = match fragmented.as_mut() {
+                let message = match fragments_state.fragmented.as_mut() {
                     None => {
                         return Some(Err(OnFrameError::Protocol(
                             ProtocolError::InvalidContinuationFrame,
                         )));
                     }
                     Some(fragmented) => {
-                        if fragmented.index + frame.payload().len() > fragments_buffer.len() {
+                        if fragmented.index + frame.payload().len()
+                            > fragments_state.fragments_buffer.len()
+                        {
                             return Some(Err(OnFrameError::FragmentsBufferTooSmall));
                         }
 
-                        fragments_buffer[fragmented.index..][..frame.payload().len()]
+                        fragments_state.fragments_buffer[fragmented.index..]
+                            [..frame.payload().len()]
                             .copy_from_slice(frame.payload());
 
                         fragmented.index += frame.payload().len();
@@ -535,7 +548,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                             match fragmented.opcode {
                                 OpCode::Text => {
                                     match core::str::from_utf8(
-                                        &fragments_buffer[..fragmented.index],
+                                        &fragments_state.fragments_buffer[..fragmented.index],
                                     ) {
                                         Ok(text) => Some(Message::Text(text)),
                                         Err(_) => {
@@ -545,9 +558,9 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                                         }
                                     }
                                 }
-                                OpCode::Binary => {
-                                    Some(Message::Binary(&fragments_buffer[..fragmented.index]))
-                                }
+                                OpCode::Binary => Some(Message::Binary(
+                                    &fragments_state.fragments_buffer[..fragmented.index],
+                                )),
                                 _ => unreachable!(
                                     "Opcode can only be set to OpCode::Text | OpCode::Binary in the first match branch"
                                 ),
@@ -559,7 +572,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                 };
 
                 if let Some(message) = message {
-                    *fragmented = None;
+                    fragments_state.fragmented = None;
 
                     return Some(Ok(Some(message)));
                 }
@@ -628,6 +641,7 @@ pub enum OnFrame<'a> {
 }
 
 #[derive(Debug)]
+#[doc(hidden)]
 pub enum OnFrameError {
     Protocol(ProtocolError),
     FragmentsBufferTooSmall,
