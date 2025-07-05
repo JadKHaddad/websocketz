@@ -11,7 +11,7 @@ repository = "https://github.com/JadKHaddad/websocketz"
 keywords = ["no_std", "embedded", "websockets", "zerocopy"]
 
 [dependencies]
-framez = { path = "/home/jadkhaddad/Desktop/Projects/framez/framez", default-features = false }
+framez = { version = "0.3.0", default-features = false }
 embedded-io-async = { version = "0.6.1", default-features = false }
 rand_core = { version = "0.9.3", default-features = false }
 rand = { version = "0.9.1", default-features = false }
@@ -35,7 +35,7 @@ hyper = "1.6.0"
 futures = "0.3.31"
 hyper-util = "0.1.14"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-framez = { path = "/home/jadkhaddad/Desktop/Projects/framez/framez", default-features = false, features = [
+framez = { version = "0.3.0", default-features = false, features = [
     "tracing",
     "char-fmt",
 ] }

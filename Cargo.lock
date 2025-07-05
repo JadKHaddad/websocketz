@@ -169,7 +169,9 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "framez"
-version = "0.2.1"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "474fb26e41fcc113f86bb8e0818c7e1150dd1d28dd9c47dfdd95f925df5f2947"
 dependencies = [
  "embedded-io-async",
  "futures",
