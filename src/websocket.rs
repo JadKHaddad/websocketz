@@ -216,52 +216,6 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         Ok((Self { core }, custom))
     }
 
-    /// Tries to read a message from the underlying reader.
-    ///
-    /// # Return value
-    ///
-    /// - `Some(Ok(None))` if the buffer is not framable or the fragments do not add up to a complete message. Call `maybe_next` again to read more bytes.
-    /// - `Some(Ok(Some(message)))` if a frame was successfully decoded. Call `maybe_next` again to read more bytes.
-    /// - `Some(Err(error))` if an error occurred. The caller should stop reading.
-    /// - `None` if eof was reached. The caller should stop reading.
-    ///
-    /// # Usage
-    ///
-    /// See [`next!`](crate::next!).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use core::{error::Error};
-    ///
-    /// use websocketz::{WebSocket, mock::Noop, next};
-    ///
-    /// async fn read() -> Result<(), Box<dyn Error>> {
-    ///     let stream = Noop;
-    ///     let rng = Noop;
-    ///     let r_buf = &mut [0u8; 1024];
-    ///     let w_buf = &mut [0u8; 1024];
-    ///     let f_buf = &mut [0u8; 1024];
-    ///     
-    ///     let mut websocketz = WebSocket::client(stream, rng, r_buf, w_buf, f_buf);
-    ///     
-    ///     while let Some(message) = next!(websocketz).transpose()? {
-    ///         println!("Message: {message:?}");
-    ///     }
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn maybe_next<'this>(
-        &'this mut self,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
-    where
-        RW: Read + Write,
-        Rng: RngCore,
-    {
-        self.core.maybe_next_auto().await
-    }
-
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
@@ -399,15 +353,6 @@ impl<'buf, RW> WebSocketRead<'buf, RW> {
     #[inline]
     pub const fn framable(&self) -> usize {
         self.core.framable()
-    }
-
-    pub async fn maybe_next<'this>(
-        &'this mut self,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
-    where
-        RW: Read,
-    {
-        self.core.maybe_next_read().await
     }
 
     #[doc(hidden)]

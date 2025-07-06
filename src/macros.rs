@@ -35,3 +35,5 @@ macro_rules! send {
         .await
     }};
 }
+
+// TODO: add send_fragmented! macro

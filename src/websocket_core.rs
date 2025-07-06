@@ -397,26 +397,6 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Ok((Self::from_framed(framed, self.fragments_state), custom))
     }
 
-    /// `maybe_next` version for the reader half of the websocket.
-    pub(crate) async fn maybe_next_read<'this>(
-        &'this mut self,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
-    where
-        RW: Read,
-    {
-        todo!()
-    }
-
-    pub(crate) async fn maybe_next_auto<'this>(
-        &'this mut self,
-    ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
-    where
-        RW: Read + Write,
-        Rng: RngCore,
-    {
-        todo!()
-    }
-
     #[doc(hidden)]
     pub const fn auto(
         &self,
