@@ -5,34 +5,18 @@
 //! ```
 //!
 //! Run this example with the `server-callback` example.
-//!
-//! This example does not handle ping-pongs.
 
 use std::time::Duration;
 
 use embedded_io_adapters::tokio_1::FromTokio;
 use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
-use tokio::{
-    io::{ReadHalf, WriteHalf},
-    net::TcpStream,
-};
+use tokio::net::TcpStream;
 use websocketz::{Message, WebSocket, http::Response, next, options::ConnectOptions};
 
 #[derive(Debug, thiserror::Error)]
 #[error("No `Server-Header: Server-Value` header in the response")]
 struct CustomError {}
-
-fn split(
-    stream: FromTokio<TcpStream>,
-) -> (
-    FromTokio<ReadHalf<TcpStream>>,
-    FromTokio<WriteHalf<TcpStream>>,
-) {
-    let (read, write) = tokio::io::split(stream.into_inner());
-
-    (FromTokio::new(read), FromTokio::new(write))
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fragments_buf = &mut [0u8; 8192];
     let rng = StdRng::from_os_rng();
 
-    let (websocketz, custom) = WebSocket::connect_with(
+    let (mut websocketz, custom) = WebSocket::connect_with(
         ConnectOptions::default()
             // Additional request headers
             .with_headers(&[Header {
@@ -80,16 +64,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         websocketz.framable()
     );
 
-    let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
-
     loop {
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                websocketz_write.send(Message::Text("Hi")).await?;
+                websocketz.send(Message::Text("Hi")).await?;
 
             },
             _ = async {
-                while let Some(message) = next!(websocketz_read).transpose()? {
+                while let Some(message) = next!(websocketz).transpose()? {
                     println!("Received message: {message:?}");
                 }
 

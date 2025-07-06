@@ -4,13 +4,11 @@
 //! cargo run --example server-callback
 //! ```
 //! Run this example with the `client-callback` example.
-//!
-//! This example does not handle ping-pongs.
 
 use embedded_io_adapters::tokio_1::FromTokio;
 use httparse::Header;
 use rand::{SeedableRng, rngs::StdRng};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use websocketz::{Message, WebSocket, http::Request, next, options::AcceptOptions};
 
 #[derive(Debug, thiserror::Error)]
@@ -28,17 +26,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (stream, _) = listener.accept().await?;
 
         let future = async move {
-            let split = |stream: FromTokio<TcpStream>| {
-                let (read, write) = tokio::io::split(stream.into_inner());
-
-                (FromTokio::new(read), FromTokio::new(write))
-            };
-
             let mut read_buf = vec![0u8; SIZE];
             let mut write_buf = vec![0u8; SIZE];
             let mut fragments_buf = vec![0u8; SIZE];
 
-            let (websocketz, custom) = WebSocket::accept_with(
+            let (mut websocketz, custom) = WebSocket::accept_with(
                 AcceptOptions::default()
                     // Additional response headers
                     .with_headers(&[Header {
@@ -70,14 +62,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("Extracted: {custom}");
 
-            let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
+            websocketz.send(Message::Text("Hello Boomer")).await?;
 
-            websocketz_write.send(Message::Text("Hello Boomer")).await?;
-
-            while let Some(message) = next!(websocketz_read).transpose()? {
+            while let Some(message) = next!(websocketz).transpose()? {
                 println!("Received message: {message:?}");
 
-                websocketz_write.send(Message::Text("Ok Boomer 👍")).await?
+                websocketz.send(Message::Text("Ok Boomer 👍")).await?
             }
 
             Ok::<(), Box<dyn std::error::Error>>(())
