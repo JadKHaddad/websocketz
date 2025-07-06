@@ -43,13 +43,3 @@ codegen-units = 1
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
-
-[[example]]
-name = "autobahn-client"
-path = "examples/autobahn-client.rs"
-required-features = []
-
-[[example]]
-name = "autobahn-server"
-path = "examples/autobahn-server.rs"
-required-features = []
