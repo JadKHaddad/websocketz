@@ -28,17 +28,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await?;
 
-            loop {
-                match next!(websocketz) {
-                    None => {
-                        break;
-                    }
-                    Some(Ok(message)) => match message {
+            while let Some(message) = next!(websocketz) {
+                match message {
+                    Ok(message) => match message {
                         Message::Text(payload) => send!(websocketz, Message::Text(payload))?,
                         Message::Binary(payload) => send!(websocketz, Message::Binary(payload))?,
                         _ => {}
                     },
-                    Some(Err(err)) => {
+                    Err(err) => {
                         println!("Error reading message: {err}");
 
                         websocketz.send(Message::Close(None)).await?;
