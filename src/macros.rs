@@ -36,4 +36,16 @@ macro_rules! send {
     }};
 }
 
-// TODO: add send_fragmented! macro
+#[macro_export]
+macro_rules! send_fragmented {
+    ($websocketz:expr, $message:expr, $fragment_size:expr) => {{
+        $crate::functions::send_fragmented(
+            &mut $websocketz.core.framed.core.codec,
+            &mut $websocketz.core.framed.core.inner,
+            &mut $websocketz.core.framed.core.state.write,
+            $message,
+            $fragment_size,
+        )
+        .await
+    }};
+}

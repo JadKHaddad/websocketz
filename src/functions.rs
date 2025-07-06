@@ -101,3 +101,26 @@ where
 
     Ok(())
 }
+
+pub async fn send_fragmented<RW, Rng>(
+    codec: &mut FramesCodec<Rng>,
+    inner: &mut RW,
+    write_state: &mut WriteState<'_>,
+    message: Message<'_>,
+    fragment_size: usize,
+) -> Result<(), Error<RW::Error>>
+where
+    RW: Write,
+    Rng: RngCore,
+{
+    for frame in message
+        .fragments(fragment_size)
+        .map_err(Error::Fragmentation)?
+    {
+        framez::functions::send(write_state, codec, inner, frame)
+            .await
+            .map_err(|err| Error::Write(WriteError::WriteFrame(err)))?;
+    }
+
+    Ok(())
+}

@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(err) => {
                         println!("Error reading message: {err}");
 
-                        websocketz.send(Message::Close(None)).await?;
+                        send!(websocketz, Message::Close(None))?;
 
                         break;
                     }

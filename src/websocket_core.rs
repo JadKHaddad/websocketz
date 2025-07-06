@@ -597,17 +597,14 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         RW: Write,
         Rng: RngCore,
     {
-        for frame in message
-            .fragments(fragment_size)
-            .map_err(Error::Fragmentation)?
-        {
-            self.framed
-                .send(frame)
-                .await
-                .map_err(|err| Error::Write(WriteError::WriteFrame(err)))?;
-        }
-
-        Ok(())
+        crate::functions::send_fragmented(
+            &mut self.framed.core.codec,
+            &mut self.framed.core.inner,
+            &mut self.framed.core.state.write,
+            message,
+            fragment_size,
+        )
+        .await
     }
 }
 

@@ -3,6 +3,7 @@ use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpStream;
 use websocketz::{
     CloseCode, CloseFrame, Message, WebSocket, http::Header, next, options::ConnectOptions, send,
+    send_fragmented,
 };
 
 async fn connect<'buf>(
@@ -43,14 +44,15 @@ async fn get_case_count() -> Result<u32, Box<dyn std::error::Error>> {
 
     let mut websocketz = connect("/getCaseCount", read_buf, write_buf, fragments_buf).await?;
 
-    let message = {
-        let Message::Text(payload) = next!(websocketz)
-            .transpose()?
-            .ok_or("No message received")?
-        else {
+    let count = match next!(websocketz)
+        .transpose()?
+        .ok_or("No message received")?
+    {
+        Message::Text(payload) => payload.parse::<u32>()?,
+
+        _ => {
             return Err("Expected a text message".into());
-        };
-        payload.parse()?
+        }
     };
 
     websocketz
@@ -59,7 +61,7 @@ async fn get_case_count() -> Result<u32, Box<dyn std::error::Error>> {
         ))))
         .await?;
 
-    Ok(message)
+    Ok(count)
 }
 
 const SIZE: usize = 24 * 1024 * 1024;
@@ -87,13 +89,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match message {
                 Ok(message) => match message {
                     Message::Text(payload) => send!(websocketz, Message::Text(payload))?,
-                    Message::Binary(payload) => send!(websocketz, Message::Binary(payload))?,
+                    Message::Binary(payload) => {
+                        // we can also fragment messages
+                        send_fragmented!(websocketz, Message::Binary(payload), SIZE / 4)?
+                    }
                     _ => {}
                 },
                 Err(err) => {
                     println!("Error reading message: {err}");
 
-                    websocketz.send(Message::Close(None)).await?;
+                    send!(websocketz, Message::Close(None))?;
 
                     break;
                 }
