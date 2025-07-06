@@ -46,13 +46,28 @@ struct Fragmented {
     index: usize,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Auto {
+    pong: bool,
+    close: bool,
+}
+
+impl Auto {
+    #[inline]
+    const fn positive() -> Self {
+        Self {
+            pong: true,
+            close: true,
+        }
+    }
+}
+
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct WebSocketCore<'buf, RW, Rng> {
     pub framed: Framed<'buf, FramesCodec<Rng>, RW>,
     pub fragments_state: FragmentsState<'buf>,
-    auto_pong: bool,
-    auto_close: bool,
+    auto: Auto,
 }
 
 impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
@@ -64,8 +79,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Self {
             framed,
             fragments_state,
-            auto_pong: true,
-            auto_close: true,
+            auto: Auto::positive(),
         }
     }
 
@@ -129,12 +143,12 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
     #[inline]
     pub(crate) const fn set_auto_pong(&mut self, auto_pong: bool) {
-        self.auto_pong = auto_pong;
+        self.auto.pong = auto_pong;
     }
 
     #[inline]
     pub(crate) const fn set_auto_close(&mut self, auto_close: bool) {
-        self.auto_close = auto_close;
+        self.auto.close = auto_close;
     }
 
     /// Returns reference to the reader/writer.
@@ -422,15 +436,14 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
     pub const fn auto(
         &self,
     ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, ProtocolError> + 'static {
-        let auto_pong = self.auto_pong;
-        let auto_close = self.auto_close;
+        let auto = self.auto;
 
         move |frame| {
-            if auto_pong && frame.opcode() == OpCode::Ping {
+            if auto.pong && frame.opcode() == OpCode::Ping {
                 return Ok(OnFrame::Send(Message::Pong(frame.payload())));
             }
 
-            if auto_close && frame.opcode() == OpCode::Close {
+            if auto.close && frame.opcode() == OpCode::Close {
                 let close_frame = match Self::extract_close_frame(&frame) {
                     Ok(close_frame) => close_frame,
                     Err(err) => return Err(err),
