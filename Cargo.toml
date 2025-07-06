@@ -25,7 +25,7 @@ rand = { version = "0.9.1", features = ["std_rng"] }
 embedded-io-adapters = { version = "0.6.1", default-features = false, features = [
     "tokio-1",
 ] }
-tokio = { version = "1.45.1", features = ["full"] }
+tokio = { version = "1.46.1", features = ["full"] }
 futures-util = "0.3.31"
 fastwebsockets = { version = "0.10.0", features = ["upgrade"] }
 http = "1.3.1"
@@ -34,11 +34,6 @@ bytes = "1.10.1"
 hyper = "1.6.0"
 futures = "0.3.31"
 hyper-util = "0.1.14"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-framez = { version = "0.3.0", default-features = false, features = [
-    "tracing",
-    "char-fmt",
-] }
 
 [profile.release]
 opt-level = 3
