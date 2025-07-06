@@ -6,8 +6,8 @@ use framez::{
 use rand::RngCore;
 
 use crate::{
-    FragmentsState, FramesCodec, Message, WebSocketCore,
-    error::Error,
+    FragmentsState, Frame, FramesCodec, Message, OnFrame, WebSocketCore,
+    error::{Error, ProtocolError},
     http::{Request, Response},
     options::{AcceptOptions, ConnectOptions},
 };
@@ -313,11 +313,24 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
             WebSocketWrite::new_from_framed(framed_write),
         )
     }
+
+    #[doc(hidden)]
+    pub const fn auto(
+        &self,
+    ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, ProtocolError> + 'static {
+        self.core.auto()
+    }
+
+    #[doc(hidden)]
+    pub const fn caller(&self) -> crate::functions::ReadAutoCaller {
+        crate::functions::ReadAutoCaller
+    }
 }
 
 #[derive(Debug)]
 pub struct WebSocketRead<'buf, RW> {
-    core: WebSocketCore<'buf, RW, ()>,
+    #[doc(hidden)]
+    pub core: WebSocketCore<'buf, RW, ()>,
 }
 
 impl<'buf, RW> WebSocketRead<'buf, RW> {
@@ -395,6 +408,14 @@ impl<'buf, RW> WebSocketRead<'buf, RW> {
         RW: Read,
     {
         self.core.maybe_next_read().await
+    }
+
+    #[doc(hidden)]
+    pub const fn auto(&self) {}
+
+    #[doc(hidden)]
+    pub const fn caller(&self) -> crate::functions::ReadCaller {
+        crate::functions::ReadCaller
     }
 }
 

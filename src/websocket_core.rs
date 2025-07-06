@@ -14,7 +14,6 @@ use crate::{
         HeaderExt, InRequestCodec, InResponseCodec, OutRequest, OutRequestCodec, OutResponse,
         OutResponseCodec, Request, Response,
     },
-    next,
     options::{AcceptOptions, ConnectOptions},
 };
 
@@ -261,7 +260,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
         let mut framed = Framed::from_parts(InResponseCodec::<N>::new(), inner, state.reset());
 
-        let custom = match next!(framed) {
+        let custom = match framez::next!(framed) {
             None => {
                 return Err(Error::Handshake(HandshakeError::ConnectionClosed));
             }
@@ -325,7 +324,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
         let mut framed = Framed::from_parts(InRequestCodec::<N>::new(), inner, state);
 
-        let (accept_key, custom) = match next!(framed) {
+        let (accept_key, custom) = match framez::next!(framed) {
             None => {
                 return Err(Error::Handshake(HandshakeError::ConnectionClosed));
             }
@@ -405,13 +404,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
     where
         RW: Read,
     {
-        let frame = match self.framed.maybe_next().await? {
-            Ok(Some(frame)) => frame,
-            Ok(None) => return Some(Ok(None)),
-            Err(err) => return Some(Err(Error::Read(ReadError::ReadFrame(err)))),
-        };
-
-        Self::on_frame(&mut self.fragments_state, frame).map(|result| result.map_err(Error::from))
+        todo!()
     }
 
     pub(crate) async fn maybe_next_auto<'this>(
@@ -421,15 +414,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         RW: Read + Write,
         Rng: RngCore,
     {
-        crate::functions::maybe_next_auto(
-            self.auto(),
-            &mut self.framed.core.codec,
-            &mut self.framed.core.inner,
-            &mut self.framed.core.state.read,
-            &mut self.framed.core.state.write,
-            &mut self.fragments_state,
-        )
-        .await
+        todo!()
     }
 
     #[doc(hidden)]

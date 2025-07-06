@@ -1,7 +1,7 @@
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpListener;
-use websocketz::{Message, WebSocket, error::Error, next_, options::AcceptOptions, send};
+use websocketz::{Message, WebSocket, error::Error, next, options::AcceptOptions, send};
 
 const SIZE: usize = 24 * 1024 * 1024;
 
@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?;
 
             loop {
-                match next_!(websocketz) {
+                match next!(websocketz) {
                     None => {
                         break;
                     }
