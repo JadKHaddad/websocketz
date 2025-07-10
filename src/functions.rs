@@ -3,7 +3,7 @@ use framez::state::{ReadState, WriteState};
 use rand::RngCore;
 
 use crate::{
-    Frame, Message, OnFrame, WebSocketCore,
+    ConnectionState, Frame, Message, OnFrame, WebSocketCore,
     codec::FramesCodec,
     error::{Error, ProtocolError, ReadError, WriteError},
     websocket_core::FragmentsState,
@@ -89,12 +89,15 @@ pub async fn send<RW, Rng>(
     codec: &mut FramesCodec<Rng>,
     inner: &mut RW,
     write_state: &mut WriteState<'_>,
+    state: &mut ConnectionState,
     message: Message<'_>,
 ) -> Result<(), Error<RW::Error>>
 where
     RW: Write,
     Rng: RngCore,
 {
+    state.closed = message.is_close();
+
     framez::functions::send(write_state, codec, inner, message)
         .await
         .map_err(|err| Error::Write(WriteError::WriteFrame(err)))?;

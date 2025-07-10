@@ -955,5 +955,119 @@ mod fragmentation {
     }
 }
 
+mod auto {
+    use crate::CloseFrame;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn pong() {
+        let (client, server) = tokio::io::duplex(16);
+
+        let client = async move {
+            let read_buf = &mut [0u8; SIZE];
+            let write_buf = &mut [0u8; SIZE];
+            let fragments_buf = &mut [0u8; SIZE];
+
+            let mut websocketz = WebSocket::client(
+                FromTokio::new(client),
+                StdRng::from_os_rng(),
+                read_buf,
+                write_buf,
+                fragments_buf,
+            );
+
+            // Send a ping frame
+            websocketz
+                .send(Message::Ping(b"ping"))
+                .await
+                .expect("Failed to send ping message");
+
+            // Expect a pong frame in response
+            match next!(websocketz) {
+                Some(Ok(Message::Pong(payload))) => {
+                    assert_eq!(payload, b"ping");
+                }
+                message => panic!("Unexpected message: {message:?}"),
+            }
+        };
+
+        let server = async move {
+            let read_buf = &mut [0u8; SIZE];
+            let write_buf = &mut [0u8; SIZE];
+            let fragments_buf = &mut [0u8; SIZE];
+
+            let mut websocketz = WebSocket::server(
+                FromTokio::new(server),
+                StdRng::from_os_rng(),
+                read_buf,
+                write_buf,
+                fragments_buf,
+            );
+
+            while next!(websocketz).is_some() {}
+        };
+
+        tokio::join!(server, client);
+    }
+
+    #[tokio::test]
+    async fn close() {
+        let (client, server) = tokio::io::duplex(16);
+
+        let client = async move {
+            let read_buf = &mut [0u8; SIZE];
+            let write_buf = &mut [0u8; SIZE];
+            let fragments_buf = &mut [0u8; SIZE];
+
+            let mut websocketz = WebSocket::client(
+                FromTokio::new(client),
+                StdRng::from_os_rng(),
+                read_buf,
+                write_buf,
+                fragments_buf,
+            );
+
+            // Send a close frame
+            websocketz
+                .send(Message::Close(Some(CloseFrame::new(
+                    CloseCode::Normal,
+                    "close",
+                ))))
+                .await
+                .expect("Failed to send close message");
+
+            // Expect a close frame in response
+            match next!(websocketz) {
+                Some(Ok(Message::Close(Some(frame)))) => {
+                    assert_eq!(frame.code(), CloseCode::Normal);
+                    assert_eq!(frame.reason(), "close");
+                }
+                message => panic!("Unexpected message: {message:?}"),
+            }
+
+            // Ensure the connection is closed
+            assert!(next!(websocketz).is_none());
+        };
+
+        let server = async move {
+            let read_buf = &mut [0u8; SIZE];
+            let write_buf = &mut [0u8; SIZE];
+            let fragments_buf = &mut [0u8; SIZE];
+
+            let mut websocketz = WebSocket::server(
+                FromTokio::new(server),
+                StdRng::from_os_rng(),
+                read_buf,
+                write_buf,
+                fragments_buf,
+            );
+
+            while next!(websocketz).is_some() {}
+        };
+
+        tokio::join!(server, client);
+    }
+}
+
 // TODO: test for read errors
-// TODO: test auto ping and auto close

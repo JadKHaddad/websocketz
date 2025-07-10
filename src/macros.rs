@@ -30,6 +30,7 @@ macro_rules! send {
             &mut $websocketz.core.framed.core.codec,
             &mut $websocketz.core.framed.core.inner,
             &mut $websocketz.core.framed.core.state.write,
+            &mut $websocketz.core.state,
             $message,
         )
         .await

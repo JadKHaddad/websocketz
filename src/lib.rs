@@ -40,7 +40,7 @@ use opcode::OpCode;
 pub mod options;
 
 mod websocket_core;
-use websocket_core::{FragmentsState, OnFrame, WebSocketCore};
+use websocket_core::{ConnectionState, FragmentsState, OnFrame, WebSocketCore};
 
 mod websocket;
 pub use websocket::{WebSocket, WebSocketRead, WebSocketWrite};

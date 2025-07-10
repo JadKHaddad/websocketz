@@ -47,7 +47,9 @@ struct Fragmented {
 
 #[derive(Debug, Clone, Copy)]
 struct Auto {
+    /// Auto pong frame handling.
     pong: bool,
+    /// Auto close frame handling.
     close: bool,
 }
 
@@ -61,12 +63,38 @@ impl Auto {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ConnectionState {
+    /// If the user sends a close frame, we should not send a close frame back.
+    ///
+    /// Must be set to `true` if the user sends a close frame.
+    pub closed: bool,
+    /// Auto handling of ping/pong and close frames.
+    auto: Auto,
+}
+
+// TODO: add a new write error: ConnectionClosed. closed must be set to true if the user sends a close frame, if the reader read a close frame.
+// Then the closed field must be set to true. Every read will then return (None, means connection closed) and every write will return a write error with ConnectionClosed.
+// And then add the tests for that. If the user closes the connection or the server closed the connection, and then the user tries to read or write a frame
+
+impl ConnectionState {
+    #[inline]
+    #[allow(clippy::new_without_default)]
+    pub const fn new() -> Self {
+        Self {
+            closed: false,
+            auto: Auto::positive(),
+        }
+    }
+}
+
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct WebSocketCore<'buf, RW, Rng> {
     pub framed: Framed<'buf, FramesCodec<Rng>, RW>,
     pub fragments_state: FragmentsState<'buf>,
-    auto: Auto,
+    pub state: ConnectionState,
 }
 
 impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
@@ -78,7 +106,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
         Self {
             framed,
             fragments_state,
-            auto: Auto::positive(),
+            state: ConnectionState::new(),
         }
     }
 
@@ -142,12 +170,12 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
 
     #[inline]
     pub(crate) const fn set_auto_pong(&mut self, auto_pong: bool) {
-        self.auto.pong = auto_pong;
+        self.state.auto.pong = auto_pong;
     }
 
     #[inline]
     pub(crate) const fn set_auto_close(&mut self, auto_close: bool) {
-        self.auto.close = auto_close;
+        self.state.auto.close = auto_close;
     }
 
     /// Returns reference to the reader/writer.
@@ -401,14 +429,14 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
     pub const fn auto(
         &self,
     ) -> impl FnOnce(Frame<'_>) -> Result<OnFrame<'_>, ProtocolError> + 'static {
-        let auto = self.auto;
+        let state = self.state;
 
         move |frame| {
-            if auto.pong && frame.opcode() == OpCode::Ping {
+            if state.auto.pong && frame.opcode() == OpCode::Ping {
                 return Ok(OnFrame::Send(Message::Pong(frame.payload())));
             }
 
-            if auto.close && frame.opcode() == OpCode::Close {
+            if state.auto.close && frame.opcode() == OpCode::Close && !state.closed {
                 let close_frame = match Self::extract_close_frame(&frame) {
                     Ok(close_frame) => close_frame,
                     Err(err) => return Err(err),
@@ -583,6 +611,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             &mut self.framed.core.codec,
             &mut self.framed.core.inner,
             &mut self.framed.core.state.write,
+            &mut self.state,
             message,
         )
         .await
