@@ -85,6 +85,8 @@ pub enum ReadError<I> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum WriteError<I> {
+    #[error("Connection closed")]
+    ConnectionClosed,
     #[error("Write frame error: {0}")]
     WriteFrame(
         #[source]

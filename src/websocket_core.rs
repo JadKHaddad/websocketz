@@ -68,15 +68,17 @@ impl Auto {
 pub struct ConnectionState {
     /// If the user sends a close frame, we should not send a close frame back.
     ///
-    /// Must be set to `true` if the user sends a close frame.
+    /// Must be set to `true` if the user sends a close frame or the other side sends a close frame.
+    ///
+    /// If the connection is closed, every read will return `None` and every write will return a [`WriteError::ConnectionClosed`].
     pub closed: bool,
     /// Auto handling of ping/pong and close frames.
     auto: Auto,
 }
 
-// TODO: add a new write error: ConnectionClosed. closed must be set to true if the user sends a close frame, if the reader read a close frame.
-// Then the closed field must be set to true. Every read will then return (None, means connection closed) and every write will return a write error with ConnectionClosed.
-// And then add the tests for that. If the user closes the connection or the server closed the connection, and then the user tries to read or write a frame
+// TODO: Set ConnectionState.closed to true if the user sends a close frame or the other side sends a close frame.
+// TODO: If ConnectionState.closed: Every read will then return (None, means connection closed) and every write will return a write error with ConnectionClosed.
+// TODO: And then add the tests for that. If the user closes the connection or the server closed the connection, and then the user tries to read or write a frame
 
 impl ConnectionState {
     #[inline]
