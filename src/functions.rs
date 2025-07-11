@@ -13,6 +13,7 @@ use crate::{
 pub struct ReadAutoCaller;
 
 impl ReadAutoCaller {
+    #[allow(clippy::too_many_arguments)]
     pub async fn call<'this, F, RW, Rng>(
         &self,
         auto: F,
@@ -21,6 +22,7 @@ impl ReadAutoCaller {
         read_state: &'this mut ReadState<'_>,
         write_state: &mut WriteState<'_>,
         fragments_state: &'this mut FragmentsState<'_>,
+        state: &mut ConnectionState,
     ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
         RW: Read + Write,
@@ -37,10 +39,10 @@ impl ReadAutoCaller {
         let frame = match auto(frame) {
             Ok(on_frame) => match on_frame {
                 OnFrame::Send(message) => {
-                    let is_close = message.is_close();
+                    state.closed = message.is_close();
 
                     match framez::functions::send(write_state, codec, inner, message).await {
-                        Ok(_) => match is_close {
+                        Ok(_) => match state.closed {
                             false => return Some(Ok(None)),
                             true => return None,
                         },
@@ -61,6 +63,7 @@ impl ReadAutoCaller {
 pub struct ReadCaller;
 
 impl ReadCaller {
+    #[allow(clippy::too_many_arguments)]
     pub async fn call<'this, RW, Rng>(
         &self,
         _auto: (),
@@ -69,6 +72,7 @@ impl ReadCaller {
         read_state: &'this mut ReadState<'_>,
         _write_state: &mut WriteState<'_>,
         fragments_state: &'this mut FragmentsState<'_>,
+        _state: &mut ConnectionState,
     ) -> Option<Result<Option<Message<'this>>, Error<RW::Error>>>
     where
         RW: Read,
@@ -96,6 +100,10 @@ where
     RW: Write,
     Rng: RngCore,
 {
+    if state.closed {
+        return Err(Error::Write(WriteError::ConnectionClosed));
+    }
+
     state.closed = message.is_close();
 
     framez::functions::send(write_state, codec, inner, message)
@@ -109,6 +117,7 @@ pub async fn send_fragmented<RW, Rng>(
     codec: &mut FramesCodec<Rng>,
     inner: &mut RW,
     write_state: &mut WriteState<'_>,
+    state: &mut ConnectionState,
     message: Message<'_>,
     fragment_size: usize,
 ) -> Result<(), Error<RW::Error>>
@@ -116,6 +125,10 @@ where
     RW: Write,
     Rng: RngCore,
 {
+    if state.closed {
+        return Err(Error::Write(WriteError::ConnectionClosed));
+    }
+
     for frame in message
         .fragments(fragment_size)
         .map_err(Error::Fragmentation)?

@@ -66,19 +66,13 @@ impl Auto {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct ConnectionState {
-    /// If the user sends a close frame, we should not send a close frame back.
-    ///
     /// Must be set to `true` if the user sends a close frame or the other side sends a close frame.
     ///
-    /// If the connection is closed, every read will return `None` and every write will return a [`WriteError::ConnectionClosed`].
+    /// If the connection is closed, every write will return a [`WriteError::ConnectionClosed`].
     pub closed: bool,
     /// Auto handling of ping/pong and close frames.
     auto: Auto,
 }
-
-// TODO: Set ConnectionState.closed to true if the user sends a close frame or the other side sends a close frame.
-// TODO: If ConnectionState.closed: Every read will then return (None, means connection closed) and every write will return a write error with ConnectionClosed.
-// TODO: And then add the tests for that. If the user closes the connection or the server closed the connection, and then the user tries to read or write a frame
 
 impl ConnectionState {
     #[inline]
@@ -632,6 +626,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
             &mut self.framed.core.codec,
             &mut self.framed.core.inner,
             &mut self.framed.core.state.write,
+            &mut self.state,
             message,
             fragment_size,
         )

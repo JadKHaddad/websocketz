@@ -11,6 +11,7 @@ macro_rules! next {
                     &mut $websocketz.core.framed.core.state.read,
                     &mut $websocketz.core.framed.core.state.write,
                     &mut $websocketz.core.fragments_state,
+                    &mut $websocketz.core.state,
                 )
                 .await
             {
@@ -44,6 +45,7 @@ macro_rules! send_fragmented {
             &mut $websocketz.core.framed.core.codec,
             &mut $websocketz.core.framed.core.inner,
             &mut $websocketz.core.framed.core.state.write,
+            &mut $websocketz.core.state,
             $message,
             $fragment_size,
         )

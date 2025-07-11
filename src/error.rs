@@ -85,6 +85,9 @@ pub enum ReadError<I> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum WriteError<I> {
+    /// Websocket connection is closed.
+    ///
+    /// To close the TCP connection, you should drop the [`WebSocket`](crate::WebSocket) instance.
     #[error("Connection closed")]
     ConnectionClosed,
     #[error("Write frame error: {0}")]

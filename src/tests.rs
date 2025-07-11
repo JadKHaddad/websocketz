@@ -956,7 +956,11 @@ mod fragmentation {
 }
 
 mod auto {
-    use crate::CloseFrame;
+
+    use crate::{
+        CloseFrame,
+        error::{Error, WriteError},
+    };
 
     use super::*;
 
@@ -1048,6 +1052,17 @@ mod auto {
 
             // Ensure the connection is closed
             assert!(next!(websocketz).is_none());
+
+            // Attempt to send another message after close should fail
+            match websocketz.send(Message::Text("test")).await {
+                Ok(_) => panic!("Expected error after close, but got Ok"),
+                Err(error) => {
+                    assert!(matches!(error, Error::Write(WriteError::ConnectionClosed)));
+                }
+            }
+
+            // Reading after eof should always return None
+            assert!(next!(websocketz).is_none());
         };
 
         let server = async move {
@@ -1064,6 +1079,14 @@ mod auto {
             );
 
             while next!(websocketz).is_some() {}
+
+            // Attempt to send another message after close should fail
+            match websocketz.send(Message::Text("test")).await {
+                Ok(_) => panic!("Expected error after close, but got Ok"),
+                Err(error) => {
+                    assert!(matches!(error, Error::Write(WriteError::ConnectionClosed)));
+                }
+            }
         };
 
         tokio::join!(server, client);
