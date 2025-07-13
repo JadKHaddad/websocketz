@@ -1,11 +1,24 @@
+//! Run with
+//!
+//! ```not_rust
+//! cargo run --example simple
+//! ```
+
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpStream;
-use websocketz::{Message, WebSocket, next, options::ConnectOptions};
+use websocketz::{Message, WebSocket, http::Header, next, options::ConnectOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let stream = TcpStream::connect("127.0.0.1:9002").await?;
+    let domain = "websockets.chilkat.io";
+
+    let addr = tokio::net::lookup_host((domain, 80))
+        .await?
+        .next()
+        .ok_or("Failed to resolve domain")?;
+
+    let stream = TcpStream::connect(addr).await?;
 
     let read_buf = &mut [0u8; 8192 * 2];
     let write_buf = &mut [0u8; 8192 * 2];
@@ -13,7 +26,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rng = StdRng::from_os_rng();
 
     let mut websocketz = WebSocket::connect::<16>(
-        ConnectOptions::default(),
+        ConnectOptions::default()
+            .with_path_unchecked("/wsChilkatEcho.ashx")
+            .with_headers(&[Header {
+                name: "Host",
+                value: domain.as_bytes(),
+            }]),
         FromTokio::new(stream),
         rng,
         read_buf,
@@ -27,14 +45,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         websocketz.framable()
     );
 
-    websocketz.send(Message::Text("Hello, WebSocket!")).await?;
+    'ws: loop {
+        websocketz.send(Message::Text("Hello, WebSocket!")).await?;
 
-    websocketz
-        .send_fragmented(Message::Text("Hello, Fragmented WebSocket!"), 4)
-        .await?;
+        match next!(websocketz) {
+            None => {
+                println!("EOF");
 
-    while let Some(message) = next!(websocketz).transpose()? {
-        println!("Received message: {message:?}");
+                break 'ws;
+            }
+            Some(Ok(msg)) => {
+                println!("Received message: {msg:?}");
+            }
+            Some(Err(err)) => {
+                eprintln!("Error receiving message: {err:?}");
+
+                break 'ws;
+            }
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
 
     Ok(())

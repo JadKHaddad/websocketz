@@ -1,3 +1,9 @@
+//! Run with
+//!
+//! ```not_rust
+//! cargo run --example autobahn-client
+//! ```
+
 use embedded_io_adapters::tokio_1::FromTokio;
 use rand::{SeedableRng, rngs::StdRng};
 use tokio::net::TcpStream;
@@ -96,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => {}
                 },
                 Err(err) => {
-                    println!("Error reading message: {err}");
+                    eprintln!("Error reading message: {err}");
 
                     send!(websocketz, Message::Close(None))?;
 
