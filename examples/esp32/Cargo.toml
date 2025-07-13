@@ -1,0 +1,79 @@
+[package]
+edition = "2021"
+name = "esp32-websocketz"
+version = "0.0.0"
+
+[[bin]]
+name = "esp32-websocketz"
+path = "./src/bin/main.rs"
+
+[workspace]
+members = ["."]
+
+[dependencies]
+esp-bootloader-esp-idf = "0.1.0"
+esp-hal = { version = "=1.0.0-beta.1", features = [
+  "esp32",
+  "log-04",
+  "unstable",
+] }
+log = "0.4.27"
+
+embassy-net = { version = "0.7.0", features = [
+  "dhcpv4",
+  "log",
+  "medium-ethernet",
+  "tcp",
+  "udp",
+  'dns',
+] }
+embedded-io = "0.6.1"
+embedded-io-async = "0.6.1"
+esp-alloc = "0.8.0"
+esp-println = { version = "0.14.0", features = ["esp32", "log-04"] }
+critical-section = "1.2.0"
+embassy-executor = { version = "0.7.0", features = [
+  "log",
+  "task-arena-size-20480",
+] }
+embassy-time = { version = "0.4.0", features = ["log"] }
+esp-hal-embassy = { version = "0.8.1", features = ["esp32", "log-04"] }
+esp-wifi = { version = "0.14.1", features = [
+  "builtin-scheduler",
+  "esp-alloc",
+  "esp32",
+  "log-04",
+  "smoltcp",
+  "wifi",
+] }
+smoltcp = { version = "0.12.0", default-features = false, features = [
+  "log",
+  "medium-ethernet",
+  "multicast",
+  "proto-dhcpv4",
+  "proto-dns",
+  "proto-ipv4",
+  "socket-dns",
+  "socket-icmp",
+  "socket-raw",
+  "socket-tcp",
+  "socket-udp",
+] }
+static_cell = { version = "2.1.0", features = ["nightly"] }
+embedded-tls = { version = "0.17.0", default-features = false }
+websocketz = { path = "../../" }
+httparse = { version = "1.10.1", default-features = false }
+
+[profile.dev]
+# Rust debug is too slow.
+# For debug builds always builds with some optimization
+opt-level = "s"
+
+[profile.release]
+codegen-units = 1        # LLVM can perform better optimizations using a single thread
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false

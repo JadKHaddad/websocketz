@@ -1,0 +1,15 @@
+[target.xtensa-esp32-none-elf]
+runner = "espflash flash --monitor --chip esp32"
+
+[env]
+ESP_LOG = "info"
+WIFI_SSID = "your_wifi_ssid"
+WIFI_PASSWORD = "your_wifi_password"
+
+[build]
+rustflags = ["-C", "link-arg=-nostartfiles"]
+
+target = "xtensa-esp32-none-elf"
+
+[unstable]
+build-std = ["alloc", "core"]
