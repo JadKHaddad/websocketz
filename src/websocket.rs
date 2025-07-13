@@ -366,7 +366,8 @@ impl<'buf, RW> WebSocketRead<'buf, RW> {
 
 #[derive(Debug)]
 pub struct WebSocketWrite<'buf, RW, Rng> {
-    core: WebSocketCore<'buf, RW, Rng>,
+    #[doc(hidden)]
+    pub core: WebSocketCore<'buf, RW, Rng>,
 }
 
 impl<'buf, RW, Rng> WebSocketWrite<'buf, RW, Rng> {

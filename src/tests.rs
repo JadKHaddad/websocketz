@@ -35,6 +35,53 @@ const STR_MESSAGES: &[&str] = &[
 #[error("Custom error")]
 struct CustomError {}
 
+mod macros {
+    use tokio::io::{DuplexStream, ReadHalf, WriteHalf};
+
+    use crate::{send, send_fragmented};
+
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "Assert that macros compile with split websocketz"]
+    async fn macros() {
+        fn split(
+            stream: FromTokio<DuplexStream>,
+        ) -> (
+            FromTokio<ReadHalf<DuplexStream>>,
+            FromTokio<WriteHalf<DuplexStream>>,
+        ) {
+            let (read, write) = tokio::io::split(stream.into_inner());
+
+            (FromTokio::new(read), FromTokio::new(write))
+        }
+
+        let (stream, _) = tokio::io::duplex(16);
+
+        let read_buf = &mut [0u8; SIZE];
+        let write_buf = &mut [0u8; SIZE];
+        let fragments_buf = &mut [0u8; SIZE];
+
+        let mut websocketz = WebSocket::client(
+            FromTokio::new(stream),
+            StdRng::from_os_rng(),
+            read_buf,
+            write_buf,
+            fragments_buf,
+        );
+
+        let _ = next!(websocketz);
+        let _ = send!(websocketz, Message::Text("Message"));
+        let _ = send_fragmented!(websocketz, Message::Text("Message"), 2);
+
+        let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
+
+        let _ = next!(websocketz_read);
+        let _ = send!(websocketz_write, Message::Text("Message"));
+        let _ = send_fragmented!(websocketz_write, Message::Text("Message"), 2);
+    }
+}
+
 mod client {
     use crate::options::ConnectOptions;
 
