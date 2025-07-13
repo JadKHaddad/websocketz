@@ -10,6 +10,7 @@
         "defmt",
         "dhcpv",
         "docsrs",
+        "espflash",
         "fastwebsockets",
         "framez",
         "fuzzingclient",
@@ -20,12 +21,14 @@
         "linkall",
         "MSRV",
         "nextest",
+        "nostartfiles",
         "println",
         "reportfile",
         "repr",
         "rngs",
         "rustc",
         "rustdoc",
+        "rustflags",
         "Seedable",
         "smoltcp",
         "Swatinem",
@@ -38,9 +41,11 @@
         "websocketz",
         "WSSERVER",
         "wstest",
+        "xtensa",
         "zerocopy"
     ],
     "ignorePaths": [
-        "target"
+        "target",
+        "autobahn/reports"
     ]
 }
