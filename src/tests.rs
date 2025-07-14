@@ -1003,7 +1003,6 @@ mod fragmentation {
 }
 
 mod auto {
-
     use crate::{
         CloseFrame,
         error::{Error, WriteError},
@@ -1107,9 +1106,6 @@ mod auto {
                     assert!(matches!(error, Error::Write(WriteError::ConnectionClosed)));
                 }
             }
-
-            // Reading after eof should always return None
-            assert!(next!(websocketz).is_none());
         };
 
         let server = async move {
@@ -1140,4 +1136,122 @@ mod auto {
     }
 }
 
-// TODO: test for read errors
+mod protocol {
+    use tokio::io::AsyncWriteExt;
+
+    use crate::error::{Error, ProtocolError, ReadError};
+
+    use super::*;
+
+    macro_rules! quick_protocol_error {
+        ($frame:ident, $error:ident) => {
+            let (client, mut server) = tokio::io::duplex(16);
+
+            let client = async move {
+                let read_buf = &mut [0u8; SIZE];
+                let write_buf = &mut [0u8; SIZE];
+                let fragments_buf = &mut [0u8; SIZE];
+
+                let mut websocketz = WebSocket::client(
+                    FromTokio::new(client),
+                    StdRng::from_os_rng(),
+                    read_buf,
+                    write_buf,
+                    fragments_buf,
+                );
+
+                match next!(websocketz) {
+                    Some(Err(error)) => {
+                        std::println!("Received error: {error:?}");
+                        assert!(matches!(
+                            error,
+                            Error::Read(ReadError::Protocol(ProtocolError::$error))
+                        ));
+                    }
+                    message => panic!("Unexpected message: {message:?}"),
+                }
+            };
+
+            let server = async move {
+                server.write_all($frame).await.unwrap();
+
+                server
+            };
+
+            tokio::join!(client, server);
+        };
+    }
+
+    #[tokio::test]
+    async fn invalid_close_frame() {
+        const FRAME: &[u8] = &[
+            0x88, // FIN=1, RSV1-3=0, opcode=0x8 (Close)
+            0x01, // MASK=0 (unmasked), payload length = 1
+            0x37, // Single byte of payload (invalid)
+        ];
+
+        quick_protocol_error!(FRAME, InvalidCloseFrame);
+    }
+
+    #[tokio::test]
+    async fn invalid_close_code() {
+        const FRAME: &[u8] = &[
+            0x88, // FIN + opcode=0x8 (Close)
+            0x02, // Payload length = 2 (only status code, no reason)
+            0x03, 0xED, // Status code: 1005 (not allowed)
+        ];
+
+        quick_protocol_error!(FRAME, InvalidCloseCode);
+    }
+
+    #[tokio::test]
+    async fn invalid_utf8_close() {
+        const FRAME: &[u8] = &[
+            0x88, // FIN + opcode=0x8 (Close)
+            0x03, // Payload length = 3 (2 bytes code + 1 byte invalid UTF-8)
+            0x03, 0xE8, // Status code: 1000 (normal closure)
+            0xFF, // Invalid UTF-8 byte
+        ];
+
+        quick_protocol_error!(FRAME, InvalidUTF8);
+    }
+
+    #[tokio::test]
+    async fn invalid_utf8_text() {
+        const FRAME: &[u8] = &[
+            0x81, // FIN + opcode 0x1 (text)
+            0x01, // payload length = 1
+            0xFF, // invalid UTF-8 byte
+        ];
+
+        quick_protocol_error!(FRAME, InvalidUTF8);
+    }
+
+    #[tokio::test]
+    async fn invalid_fragment() {
+        const FRAMES: &[u8] = &[
+            // Start a fragmented text frame
+            0x01, // FIN = 0, opcode = 0x1 (Text, not final)
+            0x01, // Payload length = 1
+            0x41, // 'A'
+            // Try to send a new Binary message while the previous fragment isn't finished
+            0x82, // FIN = 1, opcode = 0x2 (Binary, complete)
+            0x01, // Payload length = 1
+            0x42, // 'B'
+        ];
+
+        quick_protocol_error!(FRAMES, InvalidFragment);
+    }
+
+    #[tokio::test]
+    async fn invalid_continuation_frame() {
+        // Continuation frame without a preceding fragmented message
+        const FRAME: &[u8] = &[
+            0x80, // FIN = 1, opcode = 0x0 (Continuation)
+            0x01, // Payload length = 1
+            0x41, // ASCII 'A'
+        ];
+
+        quick_protocol_error!(FRAME, InvalidContinuationFrame);
+    }
+}

@@ -468,7 +468,7 @@ impl<'buf, RW, Rng> WebSocketCore<'buf, RW, Rng> {
                 let code = CloseCode::from_u16(u16::from_be_bytes([payload[0], payload[1]]));
 
                 if !code.is_allowed() {
-                    return Err(ProtocolError::InvalidCloseCode { code });
+                    return Err(ProtocolError::InvalidCloseCode);
                 }
 
                 match core::str::from_utf8(&payload[2..]) {

@@ -1,5 +1,3 @@
-use crate::CloseCode;
-
 #[derive(Debug, thiserror::Error)]
 pub enum FrameDecodeError {
     #[error("Reserved bits must be zero")]
@@ -49,8 +47,8 @@ pub enum HttpEncodeError {
 pub enum ProtocolError {
     #[error("Invalid close frame")]
     InvalidCloseFrame,
-    #[error("Invalid close code: {code:?}")]
-    InvalidCloseCode { code: CloseCode },
+    #[error("Invalid close code")]
+    InvalidCloseCode,
     #[error("Invalid UTF-8")]
     InvalidUTF8,
     #[error("Invalid fragment")]

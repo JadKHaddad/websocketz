@@ -45,14 +45,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         websocketz.framable()
     );
 
-    'ws: loop {
+    loop {
         websocketz.send(Message::Text("Hello, WebSocket!")).await?;
 
         match next!(websocketz) {
             None => {
                 println!("EOF");
 
-                break 'ws;
+                break;
             }
             Some(Ok(msg)) => {
                 println!("Received message: {msg:?}");
@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Err(err)) => {
                 eprintln!("Error receiving message: {err:?}");
 
-                break 'ws;
+                break;
             }
         }
 
