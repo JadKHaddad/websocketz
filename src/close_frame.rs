@@ -14,6 +14,7 @@ impl<'a> CloseFrame<'a> {
         Self { code, reason }
     }
 
+    /// Creates a new [`CloseFrame`] with no reason.
     pub const fn no_reason(code: CloseCode) -> Self {
         Self::new(code, "")
     }

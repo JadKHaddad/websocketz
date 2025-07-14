@@ -236,19 +236,22 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         self.core.send_fragmented(message, fragment_size).await
     }
 
-    /// Splits the [`WebSocket`] into a [`WebSocketRead`] and a [`WebSocketWrite`].
+    /// Splits the [`WebSocket`] into a [`WebSocketRead`] and a [`WebSocketWrite`] with the provided `split` function.
     ///
     /// # Note
     ///
     /// `auto_pong` and `auto_close` will `NOT` be applied to the split instances.
-    pub fn split_with<F, R, W>(self, f: F) -> (WebSocketRead<'buf, R>, WebSocketWrite<'buf, W, Rng>)
+    pub fn split_with<F, R, W>(
+        self,
+        split: F,
+    ) -> (WebSocketRead<'buf, R>, WebSocketWrite<'buf, W, Rng>)
     where
         F: FnOnce(RW) -> (R, W),
     {
         let (codec, inner, state) = self.core.framed.into_parts();
         let (read_codec, write_codec) = codec.split();
 
-        let (read, write) = f(inner);
+        let (read, write) = split(inner);
 
         let framed_read = Framed::from_parts(
             read_codec,

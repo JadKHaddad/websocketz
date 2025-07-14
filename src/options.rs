@@ -10,7 +10,7 @@ pub enum ConnectOptionsError {
 #[non_exhaustive]
 pub struct ConnectOptions<'a, 'b> {
     /// Must not be empty
-    pub path: &'a str,
+    pub(crate) path: &'a str,
     pub headers: &'a [Header<'b>],
 }
 
