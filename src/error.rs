@@ -1,3 +1,5 @@
+use core::convert::Infallible;
+
 #[derive(Debug, thiserror::Error)]
 pub enum FrameDecodeError {
     #[error("Reserved bits must be zero")]
@@ -10,7 +12,7 @@ pub enum FrameDecodeError {
     MaskedFrameFromServer,
     #[error("Invalid opcode")]
     InvalidOpCode,
-    // The payload length comes as an u64, converting it to usize might fail on 32-bit systems
+    // The payload length comes as a u64, converting it to usize might fail on 32-bit systems
     #[error("Payload too large")]
     PayloadTooLarge,
     #[error("Control frame fragmented")]
@@ -103,12 +105,8 @@ pub enum WriteError<I> {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("NoError")]
-pub struct NoError {}
-
-#[derive(Debug, thiserror::Error)]
-pub enum HandshakeError<E = NoError> {
-    /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
+pub enum HandshakeError<E = Infallible> {
+    /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method to be used).
     #[error("Unsupported HTTP method used - only GET is allowed")]
     WrongHttpMethod,
     /// Wrong HTTP version used (the WebSocket protocol requires version 1.1 or higher).
@@ -141,7 +139,7 @@ pub enum FragmentationError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error<I, E = NoError> {
+pub enum Error<I, E = Infallible> {
     #[error("Read error: {0}")]
     Read(
         #[from]
