@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# https://github.com/snapview/tungstenite-rs/blob/3ffeb33e29824deae10d86f7edff2ed4de22e91b/scripts/autobahn-server.sh
+
 set -euo pipefail
 set -x
 SOURCE_DIR=$(readlink -f "${BASH_SOURCE[0]}")
