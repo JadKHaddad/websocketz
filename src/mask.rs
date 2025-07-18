@@ -1,3 +1,5 @@
+// https://github.com/denoland/fastwebsockets/blob/d45101044613c47e7a44a14a59bde02285503c6d/src/mask.rs
+
 #[inline]
 fn unmask_easy(payload: &mut [u8], mask: [u8; 4]) {
     payload.iter_mut().enumerate().for_each(|(i, v)| {
@@ -35,4 +37,49 @@ fn unmask_fallback(buf: &mut [u8], mask: [u8; 4]) {
 #[inline]
 pub fn unmask(payload: &mut [u8], mask: [u8; 4]) {
     unmask_fallback(payload, mask)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unmask() {
+        let mut payload = [0u8; 33];
+        let mask = [1, 2, 3, 4];
+        unmask(&mut payload, mask);
+        assert_eq!(
+            &payload,
+            &[
+                1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4,
+                1, 2, 3, 4, 1
+            ]
+        );
+    }
+
+    #[test]
+    fn length_variation_unmask() {
+        for len in &[0, 2, 3, 8, 16, 18, 31, 32, 40] {
+            let mut payload = std::vec![0u8; *len];
+            let mask = [1, 2, 3, 4];
+            unmask(&mut payload, mask);
+
+            let expected = (0..*len)
+                .map(|i| (i & 3) as u8 + 1)
+                .collect::<std::vec::Vec<_>>();
+            assert_eq!(payload, expected);
+        }
+    }
+
+    #[test]
+    fn length_variation_unmask_2() {
+        for len in &[0, 2, 3, 8, 16, 18, 31, 32, 40] {
+            let mut payload = std::vec![0u8; *len];
+            let mask = rand::random::<[u8; 4]>();
+            unmask(&mut payload, mask);
+
+            let expected = (0..*len).map(|i| mask[i & 3]).collect::<std::vec::Vec<_>>();
+            assert_eq!(payload, expected);
+        }
+    }
 }
