@@ -10,8 +10,6 @@
 
 `zerocopy`, `async`, `no_std` and [`autobahn`](https://github.com/crossbario/autobahn-testsuite) compliant `websockets` implementation.
 
-## WIP
-
 ## License
 
 Licensed under either of
