@@ -1,8 +1,10 @@
 //! `zerocopy`, `async`, `no_std` and [`autobahn`](https://github.com/crossbario/autobahn-testsuite) compliant `websockets` implementation.
 
+// TODO: examples
+
 #![no_std]
 #![deny(missing_debug_implementations)]
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod close_code;

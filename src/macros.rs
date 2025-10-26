@@ -1,3 +1,8 @@
+// TODO: Add documentation for this macro and examples and why to use it.
+
+// TODO: remove this after adding docs.
+#![allow(missing_docs)]
+
 #[macro_export]
 macro_rules! next {
     ($websocketz:expr) => {{

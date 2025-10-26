@@ -1,7 +1,9 @@
 use crate::{CloseFrame, Frame, OpCode, error::FragmentationError, fragments::FragmentsIterator};
 
+/// A WebSocket message.
 #[derive(Debug)]
 pub enum Message<'a> {
+    /// A text WebSocket message
     Text(&'a str),
     /// A binary WebSocket message
     Binary(&'a [u8]),

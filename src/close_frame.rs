@@ -1,5 +1,6 @@
 use crate::CloseCode;
 
+/// A WebSocket Close frame.
 #[derive(Debug)]
 pub struct CloseFrame<'a> {
     /// The reason as a code.
