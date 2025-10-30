@@ -170,4 +170,127 @@ mod lib {
             let _ = msg;
         }
     }
+
+    #[tokio::test]
+    #[ignore = "Example"]
+    async fn send_method_no_compile() {
+        use crate::mock::Noop;
+        use crate::{WebSocket, next, options::ConnectOptions};
+
+        let stream = Noop;
+        let read_buffer = &mut [0u8; 1024];
+        let write_buffer = &mut [0u8; 1024];
+        let fragments_buffer = &mut [0u8; 1024];
+        let rng = Noop;
+
+        let websocketz = WebSocket::connect::<16>(
+            ConnectOptions::default()
+                .with_path("/ws")
+                .expect("Valid path"),
+            stream,
+            rng,
+            read_buffer,
+            write_buffer,
+            fragments_buffer,
+        )
+        .await
+        .expect("Handshake failed");
+
+        let existing_websocket = || websocketz;
+
+        let mut websocketz = existing_websocket();
+
+        while let Some(Ok(_msg)) = next!(websocketz) {
+            // Messages hold references to the websocket buffers.
+            // So this will not compile:
+            // cannot borrow `websocketz` as mutable more than once at a time.
+            // websocketz.send(msg).await.expect("Failed to send message");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Example"]
+    async fn send_macro() {
+        use crate::mock::Noop;
+        use crate::{WebSocket, next, options::ConnectOptions, send};
+
+        let stream = Noop;
+        let read_buffer = &mut [0u8; 1024];
+        let write_buffer = &mut [0u8; 1024];
+        let fragments_buffer = &mut [0u8; 1024];
+        let rng = Noop;
+
+        let websocketz = WebSocket::connect::<16>(
+            ConnectOptions::default()
+                .with_path("/ws")
+                .expect("Valid path"),
+            stream,
+            rng,
+            read_buffer,
+            write_buffer,
+            fragments_buffer,
+        )
+        .await
+        .expect("Handshake failed");
+
+        let existing_websocket = || websocketz;
+
+        let mut websocketz = existing_websocket();
+
+        while let Some(Ok(msg)) = next!(websocketz) {
+            send!(websocketz, msg).expect("Failed to send message");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Example"]
+    async fn split() {
+        use crate::mock::Noop;
+        use crate::{Message, WebSocket, next, options::ConnectOptions};
+
+        let stream = Noop;
+        let read_buffer = &mut [0u8; 1024];
+        let write_buffer = &mut [0u8; 1024];
+        let fragments_buffer = &mut [0u8; 1024];
+        let rng = Noop;
+
+        let websocketz = WebSocket::connect::<16>(
+            ConnectOptions::default()
+                .with_path("/ws")
+                .expect("Valid path"),
+            stream,
+            rng,
+            read_buffer,
+            write_buffer,
+            fragments_buffer,
+        )
+        .await
+        .expect("Handshake failed");
+
+        let existing_websocket = || websocketz;
+
+        fn split(_stream: Noop) -> (Noop, Noop) {
+            // Let's assume we split the stream here.
+
+            (Noop, Noop)
+        }
+
+        let websocketz = existing_websocket();
+
+        let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
+
+        websocketz_write
+            .send(Message::Text("Hello, WebSocket!"))
+            .await
+            .expect("Failed to send message");
+
+        while let Some(Ok(msg)) = next!(websocketz_read) {
+            // `send` method works here,
+            // because `websocketz_read` and `websocketz_write` do not hold the same references.
+            websocketz_write
+                .send(msg)
+                .await
+                .expect("Failed to send message");
+        }
+    }
 }

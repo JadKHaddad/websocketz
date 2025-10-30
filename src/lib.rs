@@ -1,23 +1,25 @@
 //! `zerocopy`, `async`, `no_std` and [`autobahn`](https://github.com/crossbario/autobahn-testsuite) compliant `websockets` implementation.
-
-// TODO: examples
-
-#![no_std]
-#![deny(missing_debug_implementations)]
-#![deny(missing_docs)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
-
+//!
+//! # Traits
+//!
+//! This library is based on [`embedded_io_async`](https://docs.rs/embedded-io-async/latest/embedded_io_async/)'s
+//! [`Read`](https://docs.rs/embedded-io-async/latest/embedded_io_async/trait.Read.html) and [`Write`](https://docs.rs/embedded-io-async/latest/embedded_io_async/trait.Write.html) and [`rand_core`](https://docs.rs/rand_core/latest/rand_core/)'s [`RngCore`](https://docs.rs/rand_core/latest/rand_core/trait.RngCore.html) traits.
+//!
+//! It's recommended to use [`embedded_io_adapters`](https://docs.rs/embedded-io-adapters/0.6.1/embedded_io_adapters/) if you are using other async `Read` and `Write` traits like [`tokio`](https://docs.rs/tokio/latest/tokio/index.html)'s [`AsyncRead`](https://docs.rs/tokio/latest/tokio/io/trait.AsyncRead.html) and [`AsyncWrite`](https://docs.rs/tokio/latest/tokio/io/trait.AsyncWrite.html).
+//!
+//! See the examples folder for more information.
+//!
 //! # Examples
 //!
 //! In the following examples, `Noop` is a mock type that implements the required traits for using a [`WebSocket`].
 //! - A `stream` is anything that implements [`embedded_io_async::Read`] + [`embedded_io_async::Write`].
-//! - A `rng` is anything that implements [`rand_core::RngCore`].
+//! - An `rng` is anything that implements [`rand_core::RngCore`].
 //!
-//! ## Client
-//! ```no_run
+//! ### Client
+//! ```
 //! # async fn client() {
-//! # use crate::mock::Noop;
-//! use crate::{Message, WebSocket, http::Header, next, options::ConnectOptions};
+//! # use websocketz::mock::Noop;
+//! use websocketz::{Message, WebSocket, http::Header, next, options::ConnectOptions};
 //!
 //! // An already connected stream.
 //! // Impl embedded_io_async Read + Write.
@@ -85,11 +87,11 @@
 //! # }
 //! ```
 //!
-//! ## Server
-//! ```no_run
+//! ### Server
+//! ```
 //! # async fn server() {
-//! # use crate::mock::Noop;
-//! use crate::{Message, WebSocket, http::Header, next, options::AcceptOptions};
+//! # use websocketz::mock::Noop;
+//! use websocketz::{Message, WebSocket, http::Header, next, options::AcceptOptions};
 //!
 //! // An already connected stream.
 //! // Impl embedded_io_async Read + Write.
@@ -168,10 +170,10 @@
 //!
 //! [`next!`] unpacks the internal `private` structure of the [`WebSocket`] to obtain mutable references and perform reads.
 //!
-//! ```no_run
+//! ```
 //! # async fn next_macro() {
-//! # use crate::mock::Noop;
-//! # use crate::{WebSocket, next, options::ConnectOptions};
+//! # use websocketz::mock::Noop;
+//! # use websocketz::{WebSocket, next, options::ConnectOptions};
 //! #
 //! # let stream = Noop;
 //! # let read_buffer = &mut [0u8; 1024];
@@ -200,6 +202,147 @@
 //!     let _ = msg;
 //! }
 //! # }
+//! ```
+//!
+//! # Writing to the connection
+//!
+//! [`WebSocket`] offers two methods to send messages, [`WebSocket::send`] and [`WebSocket::send_fragmented`].
+//! These methods take `&mut self`, which might be problematic in some situations. E.g., echoing back a received message.
+//! ```compile_fail
+//! # async fn send_method_no_compile() {
+//! # use crate::mock::Noop;
+//! # use crate::{WebSocket, next, options::ConnectOptions};
+//! #
+//! # let stream = Noop;
+//! # let read_buffer = &mut [0u8; 1024];
+//! # let write_buffer = &mut [0u8; 1024];
+//! # let fragments_buffer = &mut [0u8; 1024];
+//! # let rng = Noop;
+//! #
+//! # let websocketz = WebSocket::connect::<16>(
+//! #     ConnectOptions::default()
+//! #         .with_path("/ws")
+//! #         .expect("Valid path"),
+//! #     stream,
+//! #     rng,
+//! #     read_buffer,
+//! #     write_buffer,
+//! #     fragments_buffer,
+//! # )
+//! # .await
+//! # .expect("Handshake failed");
+//! #
+//! # let existing_websocket = || websocketz;
+//! let mut websocketz = existing_websocket();
+//!
+//! while let Some(Ok(msg)) = next!(websocketz) {
+//!     // Messages hold references to the websocket buffers.
+//!     // So this will not compile:
+//!     // cannot borrow `websocketz` as mutable more than once at a time.
+//!     websocketz.send(msg).await.expect("Failed to send message");
+//! }
+//! # }
+//! ```
+//!
+//! To work around this limitation, the library offers the [`send!`] and [`send_fragmented!`] macros, which work similarly to the [`next!`] macro by unpacking the internal `private` structure of the [`WebSocket`].
+//!
+//! ```
+//! # async fn send_macro() {
+//! # use websocketz::mock::Noop;
+//! # use websocketz::{WebSocket, next, options::ConnectOptions, send};
+//! #
+//! # let stream = Noop;
+//! # let read_buffer = &mut [0u8; 1024];
+//! # let write_buffer = &mut [0u8; 1024];
+//! # let fragments_buffer = &mut [0u8; 1024];
+//! # let rng = Noop;
+//! #
+//! # let websocketz = WebSocket::connect::<16>(
+//! #     ConnectOptions::default()
+//! #         .with_path("/ws")
+//! #         .expect("Valid path"),
+//! #     stream,
+//! #     rng,
+//! #     read_buffer,
+//! #     write_buffer,
+//! #     fragments_buffer,
+//! # )
+//! # .await
+//! # .expect("Handshake failed");
+//! #
+//! # let existing_websocket = || websocketz;
+//! let mut websocketz = existing_websocket();
+//!
+//! while let Some(Ok(msg)) = next!(websocketz) {
+//!     send!(websocketz, msg).expect("Failed to send message");
+//! }
+//! # }
+//!```
+//!
+//! # Splitting the connection
+//!
+//! In some cases, you might want to split the WebSocket connection into a read half and a write half.
+//! This can be achieved using the [`WebSocket::split_with`] method, which returns a [`WebSocketRead`] and [`WebSocketWrite`] tuple.
+//!
+//! ### Note
+//!
+//! Due to the `lazy` nature of the library, splitting the connection will sacrifice the automatic handling of `Ping` and `Close` messages.
+//! ```
+//! # async fn split() {
+//! # use websocketz::mock::Noop;
+//! # use websocketz::{Message, WebSocket, next, options::ConnectOptions};
+//! #
+//! # let stream = Noop;
+//! # let read_buffer = &mut [0u8; 1024];
+//! # let write_buffer = &mut [0u8; 1024];
+//! # let fragments_buffer = &mut [0u8; 1024];
+//! # let rng = Noop;
+//! #
+//! # let websocketz = WebSocket::connect::<16>(
+//! #     ConnectOptions::default()
+//! #         .with_path("/ws")
+//! #         .expect("Valid path"),
+//! #     stream,
+//! #     rng,
+//! #     read_buffer,
+//! #     write_buffer,
+//! #     fragments_buffer,
+//! # )
+//! # .await
+//! # .expect("Handshake failed");
+//! #
+//! # let existing_websocket = || websocketz;
+//! fn split(stream: Noop) -> (Noop, Noop) {
+//!     // Let's assume we split the stream here.
+//!
+//!     (Noop, Noop)
+//! }
+//!
+//! let websocketz = existing_websocket();
+//!
+//! let (mut websocketz_read, mut websocketz_write) = websocketz.split_with(split);
+//!
+//! websocketz_write
+//!     .send(Message::Text("Hello, WebSocket!"))
+//!     .await
+//!     .expect("Failed to send message");
+//!
+//! while let Some(Ok(msg)) = next!(websocketz_read) {
+//!     // `send` method works here,
+//!     // because `websocketz_read` and `websocketz_write` do not hold the same references.
+//!     websocketz_write
+//!         .send(msg)
+//!         .await
+//!         .expect("Failed to send message");
+//! }
+//! # }
+//!```
+
+#![no_std]
+#![deny(missing_debug_implementations)]
+#![deny(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 mod close_code;
 pub use close_code::CloseCode;
 
