@@ -15,6 +15,11 @@ use crate::{
 };
 
 /// A WebSocket connection.
+///
+/// # Defaults:
+///
+/// - `auto_pong`: `true`
+/// - `auto_close`: `true`
 #[derive(Debug)]
 pub struct WebSocket<'buf, RW, Rng> {
     #[doc(hidden)]

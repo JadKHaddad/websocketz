@@ -3,6 +3,7 @@
 mod lib {
 
     #[tokio::test]
+    #[ignore = "Example"]
     async fn client() {
         use crate::mock::Noop;
         use crate::{Message, WebSocket, http::Header, next, options::ConnectOptions};
@@ -73,6 +74,7 @@ mod lib {
     }
 
     #[tokio::test]
+    #[ignore = "Example"]
     async fn server() {
         use crate::mock::Noop;
         use crate::{Message, WebSocket, http::Header, next, options::AcceptOptions};
@@ -131,6 +133,41 @@ mod lib {
                     break;
                 }
             }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Example"]
+    async fn next_macro() {
+        use crate::mock::Noop;
+        use crate::{WebSocket, next, options::ConnectOptions};
+
+        let stream = Noop;
+        let read_buffer = &mut [0u8; 1024];
+        let write_buffer = &mut [0u8; 1024];
+        let fragments_buffer = &mut [0u8; 1024];
+        let rng = Noop;
+
+        let websocketz = WebSocket::connect::<16>(
+            ConnectOptions::default()
+                .with_path("/ws")
+                .expect("Valid path"),
+            stream,
+            rng,
+            read_buffer,
+            write_buffer,
+            fragments_buffer,
+        )
+        .await
+        .expect("Handshake failed");
+
+        let existing_websocket = || websocketz;
+
+        let mut websocketz = existing_websocket();
+
+        while let Some(Ok(msg)) = next!(websocketz) {
+            // Messages hold references to the websocket buffers.
+            let _ = msg;
         }
     }
 }

@@ -148,7 +148,58 @@
 //! }
 //! # }
 //! ```
-
+//!
+//! # Laziness
+//!
+//! This library is `lazy`, meaning that the WebSocket connection is managed as long as you read from the connection.
+//!
+//! Managing the connection consists of two parts:
+//! - Sending [Message::Pong] messages in response to [Message::Ping] messages.
+//! - Responding to [Message::Close] messages by sending the appropriate [Message::Close] response and closing the connection.
+//!
+//! `auto_pong` and `auto_close` are enabled by default, but can be set using [`WebSocket::with_auto_pong`] and [`WebSocket::with_auto_close`] respectively.
+//!
+//! # Reading from the connection
+//!
+//! This library allocates nothing. It only uses exclusive references and stack memory. It is quite challenging to offer a clean API while adhering to rust's borrowing rules.
+//! That's why a [`WebSocket`] does not offer any method to read messages directly.
+//!
+//! Instead, you can use the [`next!`] macro to read messages from the connection.
+//!
+//! [`next!`] unpacks the internal `private` structure of the [`WebSocket`] to obtain mutable references and perform reads.
+//!
+//! ```no_run
+//! # async fn next_macro() {
+//! # use crate::mock::Noop;
+//! # use crate::{WebSocket, next, options::ConnectOptions};
+//! #
+//! # let stream = Noop;
+//! # let read_buffer = &mut [0u8; 1024];
+//! # let write_buffer = &mut [0u8; 1024];
+//! # let fragments_buffer = &mut [0u8; 1024];
+//! # let rng = Noop;
+//! #
+//! # let websocketz = WebSocket::connect::<16>(
+//! #     ConnectOptions::default()
+//! #         .with_path("/ws")
+//! #         .expect("Valid path"),
+//! #     stream,
+//! #     rng,
+//! #     read_buffer,
+//! #     write_buffer,
+//! #     fragments_buffer,
+//! # )
+//! # .await
+//! # .expect("Handshake failed");
+//! #
+//! # let existing_websocket = || websocketz;
+//! let mut websocketz = existing_websocket();
+//!
+//! while let Some(Ok(msg)) = next!(websocketz) {
+//!     // Messages hold references to the websocket buffers.
+//!     let _ = msg;
+//! }
+//! # }
 mod close_code;
 pub use close_code::CloseCode;
 
