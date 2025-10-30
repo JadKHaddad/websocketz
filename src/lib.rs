@@ -284,9 +284,10 @@
 //! In some cases, you might want to split the WebSocket connection into a read half and a write half.
 //! This can be achieved using the [`WebSocket::split_with`] method, which returns a [`WebSocketRead`] and [`WebSocketWrite`] tuple.
 //!
-//! ### Note
-//!
+//! <div class="warning">
 //! Due to the `lazy` nature of the library, splitting the connection will sacrifice the automatic handling of `Ping` and `Close` messages.
+//! </div>
+//!
 //! ```
 //! # async fn split() {
 //! # use websocketz::mock::Noop;
