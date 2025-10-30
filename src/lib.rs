@@ -288,6 +288,7 @@
 //! Due to the `lazy` nature of the library, splitting the connection will sacrifice the automatic handling of `Ping` and `Close` messages.
 //! </div>
 //!
+//! ```
 //! # async fn split() {
 //! # use websocketz::mock::Noop;
 //! # use websocketz::{Message, WebSocket, next, options::ConnectOptions};
