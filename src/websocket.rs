@@ -1,5 +1,3 @@
-// TODO: examples everywhere
-
 use embedded_io_async::{Read, Write};
 use framez::{
     Framed,

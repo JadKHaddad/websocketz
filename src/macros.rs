@@ -1,8 +1,13 @@
-// TODO: Add documentation for this macro and examples and why to use it.
-
-// TODO: remove this after adding docs.
-#![allow(missing_docs)]
-
+/// Read a [`Message`](crate::Message) from a [`WebSocket`](crate::WebSocket) or [`WebSocketRead`](crate::WebSocketRead).
+///
+/// # Parameters
+///
+/// - `$websocketz`: The WebSocket instance to read from.
+///
+/// # Return
+/// - `Some(Ok(Message))`: A message was successfully read.
+/// - `Some(Err(Error))`: An error occurred while reading a message. The caller should stop reading.
+/// - `None`: The WebSocket connection has been closed (EOF). The caller should stop reading.
 #[macro_export]
 macro_rules! next {
     ($websocketz:expr) => {{
@@ -29,6 +34,11 @@ macro_rules! next {
     }};
 }
 
+/// Send a [`Message`](crate::Message) through a [`WebSocket`](crate::WebSocket) or [`WebSocketWrite`](crate::WebSocketWrite).
+///
+/// # Parameters
+/// - `$websocketz`: The WebSocket instance to send the message through.
+/// - `$message`: The message to send.
 #[macro_export]
 macro_rules! send {
     ($websocketz:expr, $message:expr) => {{
@@ -43,6 +53,12 @@ macro_rules! send {
     }};
 }
 
+/// Send a fragmented [`Message`](crate::Message) through a [`WebSocket`](crate::WebSocket) or [`WebSocketWrite`](crate::WebSocketWrite).
+///
+/// # Parameters
+/// - `$websocketz`: The WebSocket instance to send the message through.
+/// - `$message`: The message to send.
+/// - `$fragment_size`: The size of each fragment.
 #[macro_export]
 macro_rules! send_fragmented {
     ($websocketz:expr, $message:expr, $fragment_size:expr) => {{
