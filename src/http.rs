@@ -1,3 +1,7 @@
+//! HTTP request and response types.
+//!
+//! The [`Header`] type is re-exported from the [`httparse`] crate.
+
 use framez::{decode::Decoder, encode::Encoder};
 pub use httparse::Header;
 use httparse::Status;
@@ -95,6 +99,7 @@ impl Encoder<OutResponse<'_, '_>> for OutResponseCodec {
     }
 }
 
+/// An HTTP response.
 #[derive(Debug)]
 pub struct Response<'buf, const N: usize> {
     /// The response minor version, such as `1` for `HTTP/1.1`.
@@ -110,6 +115,7 @@ pub struct Response<'buf, const N: usize> {
 }
 
 impl<'buf, const N: usize> Response<'buf, N> {
+    /// Creates a new [`Response`].
     pub const fn new(
         version: u8,
         code: u16,
@@ -124,18 +130,22 @@ impl<'buf, const N: usize> Response<'buf, N> {
         }
     }
 
+    /// Returns the HTTP version.
     pub const fn version(&self) -> u8 {
         self.version
     }
 
+    /// Returns the response code.
     pub const fn code(&self) -> u16 {
         self.code
     }
 
+    /// Returns the reason-phrase.
     pub const fn reason(&self) -> &'buf str {
         self.reason
     }
 
+    /// Returns the headers.
     pub const fn headers(&self) -> &[Header<'buf>] {
         &self.headers
     }
@@ -252,6 +262,7 @@ impl Encoder<OutRequest<'_, '_>> for OutRequestCodec {
     }
 }
 
+/// An HTTP request.
 #[derive(Debug)]
 pub struct Request<'buf, const N: usize> {
     /// The request method, such as `GET`.
@@ -265,6 +276,7 @@ pub struct Request<'buf, const N: usize> {
 }
 
 impl<'buf, const N: usize> Request<'buf, N> {
+    /// Creates a new [`Request`].
     pub const fn new(
         method: &'buf str,
         path: &'buf str,
@@ -279,18 +291,22 @@ impl<'buf, const N: usize> Request<'buf, N> {
         }
     }
 
+    /// Returns the request method.
     pub const fn method(&self) -> &'buf str {
         self.method
     }
 
+    /// Returns the request path.
     pub const fn path(&self) -> &'buf str {
         self.path
     }
 
+    /// Returns the HTTP version.
     pub const fn version(&self) -> u8 {
         self.version
     }
 
+    /// Returns the headers.
     pub const fn headers(&self) -> &[Header<'buf>] {
         &self.headers
     }

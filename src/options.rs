@@ -1,16 +1,24 @@
+//! Options for establishing and accepting WebSocket connections.
+
 use crate::http::Header;
 
+/// Errors that can occur when creating [`ConnectOptions`].
 #[derive(Debug, thiserror::Error)]
 pub enum ConnectOptionsError {
+    /// The path must not be empty.
     #[error("path must not be empty")]
     EmptyPath,
 }
 
+/// Options for establishing a WebSocket connection as a client.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct ConnectOptions<'a, 'b> {
-    /// Must not be empty
+    /// The request path for the WebSocket handshake.
+    ///
+    /// Must not be empty.
     pub(crate) path: &'a str,
+    /// Additional HTTP headers to include in the handshake request.
     pub headers: &'a [Header<'b>],
 }
 
@@ -74,9 +82,11 @@ impl<'a, 'b> ConnectOptions<'a, 'b> {
     }
 }
 
+/// Options for accepting a WebSocket connection as a server.
 #[derive(Debug, Default)]
 #[non_exhaustive]
 pub struct AcceptOptions<'a, 'b> {
+    /// Additional HTTP headers to include in the handshake response.
     pub headers: &'a [Header<'b>],
 }
 

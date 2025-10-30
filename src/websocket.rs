@@ -12,6 +12,12 @@ use crate::{
     options::{AcceptOptions, ConnectOptions},
 };
 
+/// A WebSocket connection.
+///
+/// # Defaults:
+///
+/// - `auto_pong`: `true`
+/// - `auto_close`: `true`
 #[derive(Debug)]
 pub struct WebSocket<'buf, RW, Rng> {
     #[doc(hidden)]
@@ -58,6 +64,9 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 
     /// Creates a new [`WebSocket`] client and performs the handshake.
+    ///
+    /// # Generic Parameters
+    /// `N`: The maximum number of headers to accept in the handshake response.
     pub async fn connect<const N: usize>(
         options: ConnectOptions<'_, '_>,
         inner: RW,
@@ -83,6 +92,10 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         .0)
     }
 
+    /// Creates a new [`WebSocket`] client and performs the handshake with a custom response handler.
+    ///
+    /// # Generic Parameters
+    /// `N`: The maximum number of headers to accept in the handshake response.
     pub async fn connect_with<const N: usize, F, T, E>(
         options: ConnectOptions<'_, '_>,
         inner: RW,
@@ -103,6 +116,9 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 
     /// Creates a new [`WebSocket`] server and performs the handshake.
+    ///
+    /// # Generic Parameters
+    /// `N`: The maximum number of headers to accept in the handshake request.
     pub async fn accept<const N: usize>(
         options: AcceptOptions<'_, '_>,
         inner: RW,
@@ -127,6 +143,10 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         .0)
     }
 
+    /// Creates a new [`WebSocket`] server and performs the handshake with a custom request handler.
+    ///
+    /// # Generic Parameters
+    /// `N`: The maximum number of headers to accept in the handshake request.
     pub async fn accept_with<const N: usize, F, T, E>(
         options: AcceptOptions<'_, '_>,
         inner: RW,
@@ -145,12 +165,14 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
             .await
     }
 
+    /// Sets whether to automatically send a Pong response.
     #[inline]
     pub const fn with_auto_pong(mut self, auto_pong: bool) -> Self {
         self.core.set_auto_pong(auto_pong);
         self
     }
 
+    /// Sets whether to automatically close the connection on receiving a Close frame.
     #[inline]
     pub const fn with_auto_close(mut self, auto_close: bool) -> Self {
         self.core.set_auto_close(auto_close);
@@ -216,6 +238,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         Ok((Self { core }, custom))
     }
 
+    /// Sends a WebSocket message.
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
@@ -224,6 +247,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
         self.core.send(message).await
     }
 
+    /// Sends a fragmented WebSocket message.
     pub async fn send_fragmented(
         &mut self,
         message: Message<'_>,
@@ -284,6 +308,7 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 }
 
+/// Read half of a WebSocket connection.
 #[derive(Debug)]
 pub struct WebSocketRead<'buf, RW> {
     #[doc(hidden)]
@@ -367,6 +392,7 @@ impl<'buf, RW> WebSocketRead<'buf, RW> {
     }
 }
 
+/// Write half of a WebSocket connection.
 #[derive(Debug)]
 pub struct WebSocketWrite<'buf, RW, Rng> {
     #[doc(hidden)]
@@ -412,6 +438,7 @@ impl<'buf, RW, Rng> WebSocketWrite<'buf, RW, Rng> {
         self.core.into_inner()
     }
 
+    /// Sends a WebSocket message.
     pub async fn send(&mut self, message: Message<'_>) -> Result<(), Error<RW::Error>>
     where
         RW: Write,
@@ -420,6 +447,7 @@ impl<'buf, RW, Rng> WebSocketWrite<'buf, RW, Rng> {
         self.core.send(message).await
     }
 
+    /// Sends a fragmented WebSocket message.
     pub async fn send_fragmented(
         &mut self,
         message: Message<'_>,

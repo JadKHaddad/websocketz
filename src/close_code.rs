@@ -1,4 +1,8 @@
+/// A WebSocket Close code.
+///
+/// Indicate why an endpoint is closing the WebSocket connection.
 #[repr(u16)]
+#[non_exhaustive]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum CloseCode {
     /// Indicates a normal closure, meaning that the purpose for
@@ -59,10 +63,15 @@ pub enum CloseCode {
     /// to a different IP (when multiple targets exist), or reconnect to the same IP
     /// when a user has performed an action.
     Again = 1013,
+    #[doc(hidden)]
     Tls = 1015,
+    #[doc(hidden)]
     Reserved(u16),
+    #[doc(hidden)]
     Iana(u16),
+    #[doc(hidden)]
     Library(u16),
+    #[doc(hidden)]
     Bad(u16),
 }
 
