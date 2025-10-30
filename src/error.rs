@@ -148,8 +148,7 @@ pub enum WriteError<I> {
 
 /// Error establishing a WebSocket handshake.
 ///
-/// # Generic Parameter
-///
+/// # Generic Parameters
 /// `E`: User-defined error type for custom errors during the handshake.
 #[derive(Debug, thiserror::Error)]
 pub enum HandshakeError<E = Infallible> {
@@ -201,6 +200,9 @@ pub enum FragmentationError {
 }
 
 /// General WebSocket error type.
+///
+/// # Generic Parameters
+/// `E`: User-defined error type for custom errors during the handshake.
 #[derive(Debug, thiserror::Error)]
 pub enum Error<I, E = Infallible> {
     /// Error reading from the WebSocket connection.

@@ -61,6 +61,9 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 
     /// Creates a new [`WebSocket`] client and performs the handshake.
+    ///
+    /// # Generic Parameters
+    /// `N`: The maximum number of headers to accept in the handshake response.
     pub async fn connect<const N: usize>(
         options: ConnectOptions<'_, '_>,
         inner: RW,
@@ -87,6 +90,9 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 
     /// Creates a new [`WebSocket`] client and performs the handshake with a custom response handler.
+    ///
+    /// # Generic Parameters
+    /// `N`: The maximum number of headers to accept in the handshake response.
     pub async fn connect_with<const N: usize, F, T, E>(
         options: ConnectOptions<'_, '_>,
         inner: RW,
@@ -107,6 +113,9 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 
     /// Creates a new [`WebSocket`] server and performs the handshake.
+    ///
+    /// # Generic Parameters
+    /// `N`: The maximum number of headers to accept in the handshake request.
     pub async fn accept<const N: usize>(
         options: AcceptOptions<'_, '_>,
         inner: RW,
@@ -132,6 +141,9 @@ impl<'buf, RW, Rng> WebSocket<'buf, RW, Rng> {
     }
 
     /// Creates a new [`WebSocket`] server and performs the handshake with a custom request handler.
+    ///
+    /// # Generic Parameters
+    /// `N`: The maximum number of headers to accept in the handshake request.
     pub async fn accept_with<const N: usize, F, T, E>(
         options: AcceptOptions<'_, '_>,
         inner: RW,
