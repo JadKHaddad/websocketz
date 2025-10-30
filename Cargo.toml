@@ -7,7 +7,7 @@ authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 description = "A zerocopy websockets implementation for no_std environments."
-repository = "https://github.com/JadKHaddad/websocketz"
+repository = "https://github.com/zealloc/websocketz"
 keywords = ["no_std", "embedded", "websockets", "zerocopy"]
 
 [dependencies]
